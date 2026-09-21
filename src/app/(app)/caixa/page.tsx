@@ -4,11 +4,11 @@ import { CaixaClient } from "./CaixaClient";
 
 export default async function CaixaPage() {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Validação local do JWT (o proxy já barrou quem não está logado): evita uma ida ao Supabase Auth.
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const userId = (claimsData?.claims?.sub as string | undefined) ?? null;
 
-  const caixaAberto = user ? await getCaixaAberto(supabase, user.id) : null;
+  const caixaAberto = userId ? await getCaixaAberto(supabase, userId) : null;
   const [resumoAberto, historico] = await Promise.all([
     caixaAberto ? getCaixaResumo(supabase, caixaAberto.id) : Promise.resolve(null),
     getCaixas(supabase, 40),
