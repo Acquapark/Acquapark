@@ -33,6 +33,8 @@ interface KpiCardProps {
   icon: LucideIcon;
   tone?: "primary" | "success" | "warning" | "danger" | "neutral" | "info";
   trend?: { value: string; positive: boolean };
+  /** Linha de apoio discreta sob o valor (ex: detalhe de como o número foi calculado). */
+  hint?: string;
 }
 
 const toneIconClasses: Record<NonNullable<KpiCardProps["tone"]>, string> = {
@@ -44,7 +46,7 @@ const toneIconClasses: Record<NonNullable<KpiCardProps["tone"]>, string> = {
   info: "bg-info-50 text-primary-600",
 };
 
-export function KpiCard({ label, value, icon: Icon, tone = "primary", trend }: KpiCardProps) {
+export function KpiCard({ label, value, icon: Icon, tone = "primary", trend, hint }: KpiCardProps) {
   return (
     <Card className="p-4">
       <div className="flex items-start justify-between">
@@ -58,6 +60,7 @@ export function KpiCard({ label, value, icon: Icon, tone = "primary", trend }: K
           <Icon size={18} strokeWidth={2} />
         </div>
       </div>
+      {hint && <p className="mt-2 text-xs text-gray-400">{hint}</p>}
       {trend && (
         <p className={cn("mt-2 text-xs font-medium", trend.positive ? "text-success-600" : "text-danger-600")}>
           {trend.positive ? "▲" : "▼"} {trend.value}

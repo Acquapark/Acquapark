@@ -1,21 +1,39 @@
-import { DoorOpen, DoorClosed, Users, ShieldAlert } from "lucide-react";
+import { DoorOpen, DoorClosed, Users, ShieldAlert, UserCheck } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KpiCard, Card, CardHeader } from "@/components/ui/Card";
 import { catracas } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/server";
 import { getAcessosRecentes } from "@/lib/supabase/bilheteria";
+import { getAssociadosHoje } from "@/lib/supabase/acessos";
 import { CatracaCard } from "./CatracaCard";
 import { QrValidator } from "./QrValidator";
+import { AutoRefresh } from "./AutoRefresh";
 
 export default async function ControleAcessoPage() {
   const supabase = await createClient();
-  const acessosRecentes = await getAcessosRecentes(supabase, 8);
+  const [acessosRecentes, associadosHoje] = await Promise.all([
+    getAcessosRecentes(supabase, 8),
+    getAssociadosHoje(supabase),
+  ]);
 
   return (
     <div>
       <PageHeader title="Controle de Acesso" subtitle="Monitoramento das catracas em tempo real" />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <AutoRefresh intervaloSegundos={30} />
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        <KpiCard
+          label="Associados que entraram hoje"
+          value={associadosHoje.associados.toLocaleString("pt-BR")}
+          icon={UserCheck}
+          tone="success"
+          hint={
+            associadosHoje.acessos === associadosHoje.associados
+              ? "Entradas autorizadas de hoje"
+              : `${associadosHoje.acessos.toLocaleString("pt-BR")} acessos, contando reentradas`
+          }
+        />
         <KpiCard label="Pessoas no parque" value="284" icon={Users} tone="primary" />
         <KpiCard label="Entradas hoje" value="412" icon={DoorOpen} tone="success" />
         <KpiCard label="Saídas hoje" value="128" icon={DoorClosed} tone="info" />
