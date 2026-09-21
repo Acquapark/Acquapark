@@ -19,6 +19,7 @@ export function PlanoModal({ open, onClose, plano }: { open: boolean; onClose: (
   const [regraPrimeiraParcela, setRegraPrimeiraParcela] = useState<RegraPrimeiraParcela>(
     plano?.regraPrimeiraParcela ?? "padrao",
   );
+  const [vencimentoNaContratacao, setVencimentoNaContratacao] = useState(plano?.vencimentoNaContratacao ?? false);
   const [beneficios, setBeneficios] = useState(plano?.beneficios.join(", ") ?? "");
   const [ativo, setAtivo] = useState(plano?.ativo ?? true);
   const [saving, setSaving] = useState(false);
@@ -39,6 +40,7 @@ export function PlanoModal({ open, onClose, plano }: { open: boolean; onClose: (
       quantidadeMensalidades: Number(quantidadeMensalidades) || 1,
       diaVencimento: Math.min(28, Math.max(1, Number(diaVencimento) || 10)),
       regraPrimeiraParcela,
+      vencimentoNaContratacao,
       beneficios: beneficios
         .split(",")
         .map((b) => b.trim())
@@ -95,13 +97,44 @@ export function PlanoModal({ open, onClose, plano }: { open: boolean; onClose: (
               <p className="mt-1 text-[11px] text-gray-400">Quantas parcelas geradas por contrato.</p>
             </div>
             <div>
-              <Label required>Dia de vencimento</Label>
-              <Input type="number" min={1} max={28} value={diaVencimento} onChange={(e) => setDiaVencimento(e.target.value)} />
-              <p className="mt-1 text-[11px] text-gray-400">Entre 1 e 28.</p>
+              <Label required={!vencimentoNaContratacao}>Dia de vencimento</Label>
+              <Input
+                type="number"
+                min={1}
+                max={28}
+                value={diaVencimento}
+                onChange={(e) => setDiaVencimento(e.target.value)}
+                disabled={vencimentoNaContratacao}
+              />
+              <p className="mt-1 text-[11px] text-gray-400">
+                {vencimentoNaContratacao ? "Não usado: vale o dia da contratação." : "Entre 1 e 28."}
+              </p>
             </div>
           </div>
 
-          <div>
+          <label
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-[6px] border px-3 py-2.5",
+              vencimentoNaContratacao ? "border-primary-500 bg-primary-50" : "border-gray-200",
+            )}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={vencimentoNaContratacao}
+              onChange={(e) => setVencimentoNaContratacao(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-gray-800">Vencer sempre na data da contratação</span>
+              <span className="block text-[11px] text-gray-500">
+                Todas as parcelas vencem no mesmo dia do mês da contratação. Contratou dia 21/09: 1ª parcela em 21/09, a
+                próxima em 21/10, e assim por diante. Em meses mais curtos vence no último dia. O dia de vencimento fixo e
+                a regra da primeira parcela deixam de valer.
+              </span>
+            </span>
+          </label>
+
+          <fieldset disabled={vencimentoNaContratacao} className={cn(vencimentoNaContratacao && "opacity-50")}>
             <Label required>Primeira parcela</Label>
             <div className="mt-1.5 space-y-2">
               {(
@@ -132,7 +165,7 @@ export function PlanoModal({ open, onClose, plano }: { open: boolean; onClose: (
                 </label>
               ))}
             </div>
-          </div>
+          </fieldset>
 
           <div>
             <Label>Benefícios (separados por vírgula)</Label>

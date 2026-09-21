@@ -8,10 +8,10 @@ import {
 } from "@/types";
 
 export const planos: Plano[] = [
-  { id: "p1", nome: "Individual", valor: 149.9, dependentesPermitidos: 0, beneficios: ["Acesso ilimitado", "Estacionamento"], quantidadeMensalidades: 12, diaVencimento: 10, regraPrimeiraParcela: "padrao", ativo: true },
-  { id: "p2", nome: "Familiar", valor: 349.9, dependentesPermitidos: 4, beneficios: ["Acesso ilimitado", "4 dependentes", "Estacionamento", "Área vip"], quantidadeMensalidades: 12, diaVencimento: 10, regraPrimeiraParcela: "padrao", ativo: true },
-  { id: "p3", nome: "Casal", valor: 229.9, dependentesPermitidos: 1, beneficios: ["Acesso ilimitado", "1 dependente"], quantidadeMensalidades: 6, diaVencimento: 5, regraPrimeiraParcela: "padrao", ativo: true },
-  { id: "p4", nome: "Premium", valor: 499.9, dependentesPermitidos: 6, beneficios: ["Acesso ilimitado", "6 dependentes", "Área vip", "Toalhas inclusas"], quantidadeMensalidades: 12, diaVencimento: 15, regraPrimeiraParcela: "padrao", ativo: true },
+  { id: "p1", nome: "Individual", valor: 149.9, dependentesPermitidos: 0, beneficios: ["Acesso ilimitado", "Estacionamento"], quantidadeMensalidades: 12, diaVencimento: 10, regraPrimeiraParcela: "padrao", vencimentoNaContratacao: false, ativo: true },
+  { id: "p2", nome: "Familiar", valor: 349.9, dependentesPermitidos: 4, beneficios: ["Acesso ilimitado", "4 dependentes", "Estacionamento", "Área vip"], quantidadeMensalidades: 12, diaVencimento: 10, regraPrimeiraParcela: "padrao", vencimentoNaContratacao: false, ativo: true },
+  { id: "p3", nome: "Casal", valor: 229.9, dependentesPermitidos: 1, beneficios: ["Acesso ilimitado", "1 dependente"], quantidadeMensalidades: 6, diaVencimento: 5, regraPrimeiraParcela: "padrao", vencimentoNaContratacao: false, ativo: true },
+  { id: "p4", nome: "Premium", valor: 499.9, dependentesPermitidos: 6, beneficios: ["Acesso ilimitado", "6 dependentes", "Área vip", "Toalhas inclusas"], quantidadeMensalidades: 12, diaVencimento: 15, regraPrimeiraParcela: "padrao", vencimentoNaContratacao: false, ativo: true },
 ];
 
 export const associados: Associado[] = [

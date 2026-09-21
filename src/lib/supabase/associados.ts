@@ -14,6 +14,7 @@ function mapPlano(row: Row | null): Plano | null {
     quantidadeMensalidades: (row.quantidade_mensalidades as number) ?? 12,
     diaVencimento: (row.dia_vencimento as number) ?? 10,
     regraPrimeiraParcela: (row.regra_primeira_parcela as RegraPrimeiraParcela) ?? "padrao",
+    vencimentoNaContratacao: (row.vencimento_na_contratacao as boolean) ?? false,
     ativo: (row.ativo as boolean) ?? true,
   };
 }
@@ -110,7 +111,7 @@ export async function getAssociados(supabase: SupabaseClient): Promise<Associado
 
 const DETAIL_SELECT = `
   *,
-  planos ( id, nome, valor, dependentes_permitidos, beneficios, quantidade_mensalidades, dia_vencimento, regra_primeira_parcela ),
+  planos ( id, nome, valor, dependentes_permitidos, beneficios, quantidade_mensalidades, dia_vencimento, regra_primeira_parcela, vencimento_na_contratacao ),
   dependentes ( id, nome, cpf, parentesco, nascimento, ativo ),
   mensalidades ( id, contrato_id, numero_parcela, total_parcelas, vencimento, valor, status, forma_pagamento, pago_em, gateway_charge_id, pagamentos ( forma_pagamento, pago_em ) ),
   credenciais ( id, codigo, ativa, acessos ( id, tipo, resultado, motivo, registrado_em, catracas ( nome, tipo ) ) )

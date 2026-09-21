@@ -5,7 +5,7 @@ import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { AssociadoFormState } from "../form-types";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { Plano } from "@/types";
-import { gerarParcelas } from "@/lib/mensalidades-engine";
+import { parcelasDoPlano } from "@/lib/mensalidades-engine";
 
 export function StepPlano({
   form,
@@ -28,24 +28,9 @@ export function StepPlano({
   }
 
   const valor = form.valorMensalidade ? Number(form.valorMensalidade.replace(",", ".")) : plano?.valor ?? 0;
-  const podeGerarPreview =
-    !!plano &&
-    !!form.dataInicio &&
-    (plano.regraPrimeiraParcela !== "manual" || !!form.primeiraParcelaData);
-  const previewParcelas = podeGerarPreview
-    ? gerarParcelas({
-        dataInicio: form.dataInicio,
-        diaVencimento: plano!.diaVencimento,
-        quantidadeMensalidades: plano!.quantidadeMensalidades,
-        valor,
-        primeiraParcelaVencimento:
-          plano!.regraPrimeiraParcela === "adesao"
-            ? form.dataInicio
-            : plano!.regraPrimeiraParcela === "manual"
-              ? form.primeiraParcelaData
-              : undefined,
-      })
-    : [];
+  const previewParcelas = plano ? parcelasDoPlano(plano, form.dataInicio, valor, form.primeiraParcelaData) : [];
+  const podeGerarPreview = previewParcelas.length > 0;
+  const aniversario = plano?.vencimentoNaContratacao === true;
 
   return (
     <div className="space-y-6">
@@ -92,8 +77,10 @@ export function StepPlano({
         </div>
         <div>
           <Label>Dia de vencimento</Label>
-          <Input value={plano ? `Dia ${plano.diaVencimento}` : "—"} disabled />
-          <p className="mt-1 text-[11px] text-gray-400">Definido no cadastro do plano.</p>
+          <Input value={!plano ? "—" : aniversario ? "Data da contratação" : `Dia ${plano.diaVencimento}`} disabled />
+          <p className="mt-1 text-[11px] text-gray-400">
+            {aniversario ? "Todas as parcelas vencem no dia do mês da data de início." : "Definido no cadastro do plano."}
+          </p>
         </div>
         <div>
           <Label>Mensalidades</Label>
@@ -101,7 +88,7 @@ export function StepPlano({
           <p className="mt-1 text-[11px] text-gray-400">Definido no cadastro do plano.</p>
         </div>
 
-        {plano?.regraPrimeiraParcela === "manual" ? (
+        {aniversario ? null : plano?.regraPrimeiraParcela === "manual" ? (
           <div>
             <Label required>Vencimento da 1ª parcela</Label>
             <Input

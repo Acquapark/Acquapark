@@ -17,6 +17,8 @@ export interface Plano {
   quantidadeMensalidades: number;
   diaVencimento: number;
   regraPrimeiraParcela: RegraPrimeiraParcela;
+  /** Todas as parcelas vencem no dia do mês da data de contratação (ignora dia fixo e 1ª parcela). */
+  vencimentoNaContratacao: boolean;
   ativo: boolean;
 }
 
@@ -33,6 +35,7 @@ export interface Contrato {
   valor: number;
   quantidadeMensalidades: number;
   regraPrimeiraParcela: RegraPrimeiraParcela;
+  vencimentoNaContratacao: boolean;
   status: ContratoStatus;
 }
 

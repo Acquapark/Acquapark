@@ -17,6 +17,7 @@ function mapContrato(row: Row): Contrato {
     valor: Number(row.valor),
     quantidadeMensalidades: row.quantidade_mensalidades as number,
     regraPrimeiraParcela: (row.regra_primeira_parcela as RegraPrimeiraParcela) ?? "padrao",
+    vencimentoNaContratacao: (row.vencimento_na_contratacao as boolean) ?? false,
     status: row.status as Contrato["status"],
   };
 }

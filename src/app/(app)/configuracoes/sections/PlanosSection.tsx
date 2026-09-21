@@ -52,7 +52,7 @@ export function PlanosSection({ planos }: { planos: Plano[] }) {
               <Td className="font-medium text-gray-800">{p.nome}</Td>
               <Td>{formatCurrency(p.valor)}</Td>
               <Td>{p.quantidadeMensalidades}x</Td>
-              <Td>Dia {p.diaVencimento}</Td>
+              <Td>{p.vencimentoNaContratacao ? "Data da contratação" : `Dia ${p.diaVencimento}`}</Td>
               <Td>{p.dependentesPermitidos}</Td>
               <Td>
                 <Badge tone={p.ativo ? "success" : "neutral"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>

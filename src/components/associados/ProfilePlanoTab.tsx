@@ -10,7 +10,7 @@ import { Label, Input } from "@/components/ui/Field";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { Contrato, Plano } from "@/types";
 import { vincularPlano } from "@/app/(app)/associados/actions";
-import { gerarParcelas } from "@/lib/mensalidades-engine";
+import { parcelasDoPlano } from "@/lib/mensalidades-engine";
 
 export function ProfilePlanoTab({
   associadoId,
@@ -35,31 +35,18 @@ export function ProfilePlanoTab({
     setPrimeiraParcelaData("");
   }
 
-  const podeGerarPreview =
-    !!planoSelecionado &&
-    !!dataInicio &&
-    (planoSelecionado.regraPrimeiraParcela !== "manual" || !!primeiraParcelaData);
-  const previewParcelas = podeGerarPreview
-    ? gerarParcelas({
-        dataInicio,
-        diaVencimento: planoSelecionado!.diaVencimento,
-        quantidadeMensalidades: planoSelecionado!.quantidadeMensalidades,
-        valor: planoSelecionado!.valor,
-        primeiraParcelaVencimento:
-          planoSelecionado!.regraPrimeiraParcela === "adesao"
-            ? dataInicio
-            : planoSelecionado!.regraPrimeiraParcela === "manual"
-              ? primeiraParcelaData
-              : undefined,
-      })
+  const previewParcelas = planoSelecionado
+    ? parcelasDoPlano(planoSelecionado, dataInicio, planoSelecionado.valor, primeiraParcelaData)
     : [];
+  const podeGerarPreview = previewParcelas.length > 0;
+  const aniversario = planoSelecionado?.vencimentoNaContratacao === true;
 
   async function handleVincular() {
     if (!planoId || !dataInicio) {
       setError("Selecione um plano e a data de início.");
       return;
     }
-    if (planoSelecionado?.regraPrimeiraParcela === "manual" && !primeiraParcelaData) {
+    if (!aniversario && planoSelecionado?.regraPrimeiraParcela === "manual" && !primeiraParcelaData) {
       setError("Este plano exige a escolha manual da data da 1ª parcela.");
       return;
     }
@@ -134,7 +121,9 @@ export function ProfilePlanoTab({
               {planoId === p.id && <Check size={15} className="text-primary-600" />}
             </div>
             <p className="mt-1 text-base font-semibold text-gray-900">{formatCurrency(p.valor)}</p>
-            <p className="text-xs text-gray-500">{p.quantidadeMensalidades}x · vence dia {p.diaVencimento}</p>
+            <p className="text-xs text-gray-500">
+              {p.quantidadeMensalidades}x · vence {p.vencimentoNaContratacao ? "na data da contratação" : `dia ${p.diaVencimento}`}
+            </p>
           </button>
         ))}
       </div>
@@ -146,13 +135,16 @@ export function ProfilePlanoTab({
             <Input type="date" value={dataInicio} onChange={(e) => setDataInicio(e.target.value)} />
           </div>
 
-          {planoSelecionado.regraPrimeiraParcela === "manual" && (
+          {aniversario && (
+            <p className="text-xs text-gray-500">Todas as parcelas vencem no dia do mês da data de início.</p>
+          )}
+          {!aniversario && planoSelecionado.regraPrimeiraParcela === "manual" && (
             <div>
               <Label required>Vencimento da 1ª parcela</Label>
               <Input type="date" value={primeiraParcelaData} onChange={(e) => setPrimeiraParcelaData(e.target.value)} />
             </div>
           )}
-          {planoSelecionado.regraPrimeiraParcela === "adesao" && (
+          {!aniversario && planoSelecionado.regraPrimeiraParcela === "adesao" && (
             <p className="text-xs text-gray-500">A 1ª parcela usará a data de início acima.</p>
           )}
 

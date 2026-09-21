@@ -60,10 +60,13 @@ async function validarPrimeiraParcela(
 ): Promise<{ error?: string }> {
   const { data: planoRow, error } = await supabase
     .from("planos")
-    .select("dia_vencimento, regra_primeira_parcela")
+    .select("dia_vencimento, regra_primeira_parcela, vencimento_na_contratacao")
     .eq("id", planoId)
     .single();
   if (error || !planoRow) return { error: "Plano não encontrado." };
+
+  // Vencimento na data da contratação: não há data da 1ª parcela a validar.
+  if (planoRow.vencimento_na_contratacao) return {};
 
   const { error: regraError } = resolverPrimeiraParcela({
     regraPrimeiraParcela: planoRow.regra_primeira_parcela as RegraPrimeiraParcela,
@@ -90,7 +93,7 @@ async function criarContratoEMensalidades(
 ) {
   const { data: planoRow, error: planoError } = await supabase
     .from("planos")
-    .select("valor, quantidade_mensalidades, dia_vencimento, regra_primeira_parcela")
+    .select("valor, quantidade_mensalidades, dia_vencimento, regra_primeira_parcela, vencimento_na_contratacao")
     .eq("id", params.planoId)
     .single();
   if (planoError || !planoRow) return { error: "Plano não encontrado." };
@@ -98,15 +101,24 @@ async function criarContratoEMensalidades(
   const valor = params.valorOverride ?? Number(planoRow.valor);
   const quantidadeMensalidades = planoRow.quantidade_mensalidades as number;
   const diaVencimento = planoRow.dia_vencimento as number;
-  const regraPrimeiraParcela = planoRow.regra_primeira_parcela as RegraPrimeiraParcela;
+  const vencimentoNaContratacao = Boolean(planoRow.vencimento_na_contratacao);
+  // Com vencimento na contratação a 1ª parcela é a própria data da contratação,
+  // então o contrato registra a regra "adesao" (o dia fixo e a regra do plano não valem).
+  const regraPrimeiraParcela: RegraPrimeiraParcela = vencimentoNaContratacao
+    ? "adesao"
+    : (planoRow.regra_primeira_parcela as RegraPrimeiraParcela);
 
-  const { error: regraError, primeiraParcelaVencimento } = resolverPrimeiraParcela({
-    regraPrimeiraParcela,
-    dataInicio: params.dataInicio,
-    diaVencimento,
-    primeiraParcelaManual: params.primeiraParcelaManual,
-  });
-  if (regraError) return { error: regraError };
+  let primeiraParcelaVencimento: string | undefined;
+  if (!vencimentoNaContratacao) {
+    const resolvido = resolverPrimeiraParcela({
+      regraPrimeiraParcela,
+      dataInicio: params.dataInicio,
+      diaVencimento,
+      primeiraParcelaManual: params.primeiraParcelaManual,
+    });
+    if (resolvido.error) return { error: resolvido.error };
+    primeiraParcelaVencimento = resolvido.primeiraParcelaVencimento;
+  }
 
   const { data: contrato, error: contratoError } = await supabase
     .from("contratos")
@@ -117,6 +129,7 @@ async function criarContratoEMensalidades(
       valor,
       quantidade_mensalidades: quantidadeMensalidades,
       regra_primeira_parcela: regraPrimeiraParcela,
+      vencimento_na_contratacao: vencimentoNaContratacao,
       status: "Ativo",
     })
     .select("id, numero")
@@ -131,6 +144,7 @@ async function criarContratoEMensalidades(
     quantidadeMensalidades,
     valor,
     primeiraParcelaVencimento,
+    vencimentoNaContratacao,
   });
 
   const { error: mensalidadesError } = await supabase.from("mensalidades").insert(

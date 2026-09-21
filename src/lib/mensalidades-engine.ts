@@ -55,8 +55,26 @@ export function gerarParcelas(params: {
    * quantidade de parcelas definida no plano).
    */
   primeiraParcelaVencimento?: string; // YYYY-MM-DD
+  /**
+   * Vencimento "aniversário": todas as parcelas vencem no dia do mês da
+   * própria data de início (contratou dia 21 -> 21/09, 21/10, 21/11...). Ignora
+   * `diaVencimento` e `primeiraParcelaVencimento`. Mês mais curto usa o último
+   * dia, sem "arrastar" o dia para os meses seguintes (31/01 -> 28/02 -> 31/03).
+   */
+  vencimentoNaContratacao?: boolean;
 }): ParcelaGerada[] {
-  const { dataInicio, diaVencimento, quantidadeMensalidades, valor, primeiraParcelaVencimento } = params;
+  const { dataInicio, diaVencimento, quantidadeMensalidades, valor, primeiraParcelaVencimento, vencimentoNaContratacao } =
+    params;
+
+  if (vencimentoNaContratacao) {
+    const [ano, mes, dia] = dataInicio.split("-").map(Number);
+    return Array.from({ length: quantidadeMensalidades }, (_, i) => {
+      const deslocamento = mes - 1 + i;
+      const vencimento = toDateOnly(ano + Math.floor(deslocamento / 12), deslocamento % 12, dia);
+      return { numeroParcela: i + 1, totalParcelas: quantidadeMensalidades, vencimento: toISODate(vencimento), valor };
+    });
+  }
+
   const primeiro = calcularPrimeiroVencimento(dataInicio, diaVencimento);
 
   const vencimentos: Date[] = [];
@@ -83,4 +101,44 @@ export function gerarParcelas(params: {
     vencimento: toISODate(vencimento),
     valor,
   }));
+}
+
+/** Regras do plano que definem as datas das parcelas (o que a contratação precisa conhecer). */
+export interface RegrasDoPlano {
+  diaVencimento: number;
+  quantidadeMensalidades: number;
+  regraPrimeiraParcela: "padrao" | "adesao" | "manual";
+  vencimentoNaContratacao: boolean;
+}
+
+/**
+ * Parcelas que serão geradas para um plano, aplicando todas as regras dele.
+ * É a mesma conta do servidor, usada na pré-visualização antes de confirmar.
+ * Retorna [] enquanto faltar dado (data de início, ou a data manual exigida).
+ */
+export function parcelasDoPlano(
+  plano: RegrasDoPlano,
+  dataInicio: string,
+  valor: number,
+  primeiraParcelaManual?: string,
+): ParcelaGerada[] {
+  if (!dataInicio) return [];
+
+  if (plano.vencimentoNaContratacao) {
+    return gerarParcelas({ dataInicio, diaVencimento: plano.diaVencimento, quantidadeMensalidades: plano.quantidadeMensalidades, valor, vencimentoNaContratacao: true });
+  }
+  if (plano.regraPrimeiraParcela === "manual" && !primeiraParcelaManual) return [];
+
+  return gerarParcelas({
+    dataInicio,
+    diaVencimento: plano.diaVencimento,
+    quantidadeMensalidades: plano.quantidadeMensalidades,
+    valor,
+    primeiraParcelaVencimento:
+      plano.regraPrimeiraParcela === "adesao"
+        ? dataInicio
+        : plano.regraPrimeiraParcela === "manual"
+          ? primeiraParcelaManual
+          : undefined,
+  });
 }

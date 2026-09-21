@@ -12,6 +12,7 @@ export interface PlanoFormInput {
   quantidadeMensalidades: number;
   diaVencimento: number;
   regraPrimeiraParcela: RegraPrimeiraParcela;
+  vencimentoNaContratacao: boolean;
   beneficios: string[];
   ativo: boolean;
 }
@@ -25,6 +26,7 @@ export async function createPlano(input: PlanoFormInput) {
     quantidade_mensalidades: input.quantidadeMensalidades,
     dia_vencimento: input.diaVencimento,
     regra_primeira_parcela: input.regraPrimeiraParcela,
+    vencimento_na_contratacao: input.vencimentoNaContratacao,
     beneficios: input.beneficios,
     ativo: input.ativo,
   });
@@ -44,6 +46,7 @@ export async function updatePlano(id: string, input: PlanoFormInput) {
       quantidade_mensalidades: input.quantidadeMensalidades,
       dia_vencimento: input.diaVencimento,
       regra_primeira_parcela: input.regraPrimeiraParcela,
+    vencimento_na_contratacao: input.vencimentoNaContratacao,
       beneficios: input.beneficios,
       ativo: input.ativo,
     })
