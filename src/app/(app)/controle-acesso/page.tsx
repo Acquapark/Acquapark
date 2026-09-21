@@ -4,16 +4,18 @@ import { KpiCard, Card, CardHeader } from "@/components/ui/Card";
 import { catracas } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/server";
 import { getAcessosRecentes } from "@/lib/supabase/bilheteria";
-import { getAssociadosHoje } from "@/lib/supabase/acessos";
+import { getAcessosHoje } from "@/lib/supabase/acessos";
 import { CatracaCard } from "./CatracaCard";
 import { QrValidator } from "./QrValidator";
 import { AutoRefresh } from "./AutoRefresh";
 
+const qtd = (n: number, singular: string, plural: string) => `${n.toLocaleString("pt-BR")} ${n === 1 ? singular : plural}`;
+
 export default async function ControleAcessoPage() {
   const supabase = await createClient();
-  const [acessosRecentes, associadosHoje] = await Promise.all([
+  const [acessosRecentes, acessosHoje] = await Promise.all([
     getAcessosRecentes(supabase, 8),
-    getAssociadosHoje(supabase),
+    getAcessosHoje(supabase),
   ]);
 
   return (
@@ -25,19 +27,42 @@ export default async function ControleAcessoPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <KpiCard
           label="Associados que entraram hoje"
-          value={associadosHoje.associados.toLocaleString("pt-BR")}
+          value={acessosHoje.associados.toLocaleString("pt-BR")}
           icon={UserCheck}
           tone="success"
           hint={
-            associadosHoje.acessos === associadosHoje.associados
+            acessosHoje.acessosAssociados === acessosHoje.associados
               ? "Entradas autorizadas de hoje"
-              : `${associadosHoje.acessos.toLocaleString("pt-BR")} acessos, contando reentradas`
+              : `${qtd(acessosHoje.acessosAssociados, "acesso", "acessos")}, contando reentradas`
           }
         />
         <KpiCard label="Pessoas no parque" value="284" icon={Users} tone="primary" />
-        <KpiCard label="Entradas hoje" value="412" icon={DoorOpen} tone="success" />
+        <KpiCard
+          label="Entradas hoje"
+          value={acessosHoje.entradas.total.toLocaleString("pt-BR")}
+          icon={DoorOpen}
+          tone="success"
+          hint={[
+            `${acessosHoje.entradas.ingressos.toLocaleString("pt-BR")} de ingressos`,
+            `${acessosHoje.entradas.associados.toLocaleString("pt-BR")} de associados`,
+            ...(acessosHoje.entradas.reentradas > 0 ? [qtd(acessosHoje.entradas.reentradas, "reentrada", "reentradas")] : []),
+          ].join(" · ")}
+        />
         <KpiCard label="Saídas hoje" value="128" icon={DoorClosed} tone="info" />
-        <KpiCard label="Acessos negados hoje" value="6" icon={ShieldAlert} tone="danger" />
+        <KpiCard
+          label="Acessos negados hoje"
+          value={acessosHoje.negados.total.toLocaleString("pt-BR")}
+          icon={ShieldAlert}
+          tone="danger"
+          hint={
+            acessosHoje.negados.total === 0
+              ? "Nenhum acesso barrado hoje"
+              : [
+                  qtd(acessosHoje.negados.negados, "negado", "negados"),
+                  qtd(acessosHoje.negados.bloqueados, "bloqueado", "bloqueados"),
+                ].join(" · ")
+          }
+        />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-3">
