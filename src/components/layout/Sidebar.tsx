@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import {
@@ -45,6 +45,71 @@ const CONFIG_SUBITEMS = [
   { key: "catracas", label: "Catracas", icon: DoorClosed },
 ];
 
+function ConfigNavView({ activeSection, onNavigate }: { activeSection: string; onNavigate?: () => void }) {
+  const pathname = usePathname();
+  const isConfigRoute = pathname.startsWith("/configuracoes");
+  const [expanded, setExpanded] = useState(isConfigRoute);
+
+  useEffect(() => {
+    if (isConfigRoute) setExpanded(true);
+  }, [isConfigRoute]);
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={() => setExpanded((prev) => !prev)}
+        aria-expanded={expanded}
+        className={cn(
+          "flex w-full items-center gap-2.5 rounded-[4px] px-2.5 py-2 text-sm font-medium transition-colors",
+          isConfigRoute ? "bg-primary-50 text-primary-700" : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
+        )}
+      >
+        <Settings size={17} strokeWidth={2} className={isConfigRoute ? "text-primary-600" : "text-gray-400"} />
+        <span className="flex-1 text-left">Configurações</span>
+        <ChevronDown size={15} className={cn("text-gray-400 transition-transform", expanded && "rotate-180")} />
+      </button>
+
+      {expanded && (
+        <div className="mt-0.5 space-y-0.5 border-l border-gray-200 pl-3.5">
+          {CONFIG_SUBITEMS.map((item) => {
+            const active = isConfigRoute && activeSection === item.key;
+            const Icon = item.icon;
+            return (
+              <Link
+                key={item.key}
+                href={`/configuracoes?section=${item.key}`}
+                onClick={onNavigate}
+                className={cn(
+                  "flex items-center gap-2.5 rounded-[4px] px-2.5 py-1.5 text-[13px] font-medium transition-colors",
+                  active ? "bg-primary-50 text-primary-700" : "text-gray-500 hover:bg-gray-50 hover:text-gray-900",
+                )}
+              >
+                <Icon size={15} strokeWidth={2} className={active ? "text-primary-600" : "text-gray-400"} />
+                {item.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Lê ?section= da URL; isolado aqui porque useSearchParams exige Suspense em páginas pré-renderizadas. */
+function ConfigNavConnected({ onNavigate }: { onNavigate?: () => void }) {
+  const searchParams = useSearchParams();
+  return <ConfigNavView activeSection={searchParams.get("section") ?? "parque"} onNavigate={onNavigate} />;
+}
+
+function ConfigNav({ onNavigate }: { onNavigate?: () => void }) {
+  return (
+    <Suspense fallback={<ConfigNavView activeSection="parque" onNavigate={onNavigate} />}>
+      <ConfigNavConnected onNavigate={onNavigate} />
+    </Suspense>
+  );
+}
+
 export function Sidebar({
   mobileOpen = false,
   onClose,
@@ -53,14 +118,6 @@ export function Sidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const isConfigRoute = pathname.startsWith("/configuracoes");
-  const activeSection = searchParams.get("section") ?? "parque";
-  const [configExpanded, setConfigExpanded] = useState(isConfigRoute);
-
-  useEffect(() => {
-    if (isConfigRoute) setConfigExpanded(true);
-  }, [isConfigRoute]);
 
   return (
     <>
@@ -111,51 +168,7 @@ export function Sidebar({
             );
           })}
 
-          <div>
-            <button
-              type="button"
-              onClick={() => setConfigExpanded((prev) => !prev)}
-              aria-expanded={configExpanded}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-[4px] px-2.5 py-2 text-sm font-medium transition-colors",
-                isConfigRoute
-                  ? "bg-primary-50 text-primary-700"
-                  : "text-gray-600 hover:bg-gray-50 hover:text-gray-900",
-              )}
-            >
-              <Settings size={17} strokeWidth={2} className={isConfigRoute ? "text-primary-600" : "text-gray-400"} />
-              <span className="flex-1 text-left">Configurações</span>
-              <ChevronDown
-                size={15}
-                className={cn("text-gray-400 transition-transform", configExpanded && "rotate-180")}
-              />
-            </button>
-
-            {configExpanded && (
-              <div className="mt-0.5 space-y-0.5 border-l border-gray-200 pl-3.5">
-                {CONFIG_SUBITEMS.map((item) => {
-                  const active = isConfigRoute && activeSection === item.key;
-                  const Icon = item.icon;
-                  return (
-                    <Link
-                      key={item.key}
-                      href={`/configuracoes?section=${item.key}`}
-                      onClick={onClose}
-                      className={cn(
-                        "flex items-center gap-2.5 rounded-[4px] px-2.5 py-1.5 text-[13px] font-medium transition-colors",
-                        active
-                          ? "bg-primary-50 text-primary-700"
-                          : "text-gray-500 hover:bg-gray-50 hover:text-gray-900",
-                      )}
-                    >
-                      <Icon size={15} strokeWidth={2} className={active ? "text-primary-600" : "text-gray-400"} />
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          <ConfigNav onNavigate={onClose} />
         </nav>
 
         <div className="border-t border-gray-200 px-4 py-3">
