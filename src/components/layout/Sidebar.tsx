@@ -20,6 +20,7 @@ import {
   ShieldCheck,
   KeyRound,
   ChevronDown,
+  Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +28,7 @@ const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/associados", label: "Associados", icon: Users },
   { href: "/bilheteria", label: "Bilheteria", icon: Ticket },
+  { href: "/caixa", label: "Caixa", icon: Banknote },
   { href: "/controle-acesso", label: "Controle de Acesso", icon: ScanLine },
   { href: "/financeiro", label: "Financeiro", icon: Wallet },
   { href: "/contratos", label: "Contratos", icon: FileSignature },

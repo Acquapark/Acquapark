@@ -94,12 +94,16 @@ export interface Associado {
   acessos: AcessoRegistro[];
 }
 
+export type RegraReentrada = "unica" | "reentrada" | "ilimitado";
+
 export interface TipoIngresso {
   id: string;
   nome: string;
   descricao: string;
   valor: number;
   validade: string;
+  regraReentrada: RegraReentrada;
+  ativo: boolean;
 }
 
 export interface Ingresso {
@@ -110,6 +114,8 @@ export interface Ingresso {
   valor: number;
   status: IngressoStatus;
   comprador: string;
+  codigo?: string;
+  formaPagamento?: string;
 }
 
 export interface Catraca {
@@ -135,4 +141,52 @@ export interface Despesa {
   valor: number;
   vencimento: string;
   status: "Pago" | "Pendente" | "Vencido";
+}
+
+export type CaixaStatus = "Aberto" | "Fechado";
+export type CaixaMovimentoTipo = "Suprimento" | "Sangria";
+
+export interface Caixa {
+  id: string;
+  numero: string;
+  operadorId: string;
+  operadorNome: string;
+  status: CaixaStatus;
+  valorAbertura: number;
+  abertoEm: string;
+  fechadoEm: string | null;
+  valorEsperado: number | null;
+  valorContado: number | null;
+  diferenca: number | null;
+  observacoes: string | null;
+  reaberturas: number;
+}
+
+export interface CaixaMovimento {
+  id: string;
+  tipo: CaixaMovimentoTipo;
+  valor: number;
+  motivo: string | null;
+  createdAt: string;
+}
+
+/** Recebimento (ou estorno, quando negativo) lançado no caixa. */
+export interface CaixaLancamento {
+  id: string;
+  valor: number;
+  forma: string;
+  referencia: string | null;
+  pagoEm: string;
+}
+
+export interface CaixaResumo {
+  caixa: Caixa;
+  movimentos: CaixaMovimento[];
+  lancamentos: CaixaLancamento[];
+  suprimentos: number;
+  sangrias: number;
+  vendas: number;
+  estornos: number;
+  porForma: Record<string, number>;
+  dinheiroEsperado: number;
 }

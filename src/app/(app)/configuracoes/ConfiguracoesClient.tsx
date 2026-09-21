@@ -11,12 +11,20 @@ import { TiposIngressoSection } from "./sections/TiposIngressoSection";
 import { RegrasAcessoSection } from "./sections/RegrasAcessoSection";
 import { CatracasSection } from "./sections/CatracasSection";
 import { Empresa } from "@/lib/contracts/variables";
-import { Plano } from "@/types";
+import { Plano, TipoIngresso } from "@/types";
 
 const SECTION_KEYS = ["parque", "usuarios", "permissoes", "planos", "ingressos", "regras", "catracas"] as const;
 type SectionKey = (typeof SECTION_KEYS)[number];
 
-export function ConfiguracoesClient({ empresa, planos }: { empresa: Empresa; planos: Plano[] }) {
+export function ConfiguracoesClient({
+  empresa,
+  planos,
+  tiposIngresso,
+}: {
+  empresa: Empresa;
+  planos: Plano[];
+  tiposIngresso: TipoIngresso[];
+}) {
   const searchParams = useSearchParams();
   const requested = searchParams.get("section");
   const section: SectionKey = (SECTION_KEYS as readonly string[]).includes(requested ?? "")
@@ -32,7 +40,7 @@ export function ConfiguracoesClient({ empresa, planos }: { empresa: Empresa; pla
         {section === "usuarios" && <UsuariosSection />}
         {section === "permissoes" && <PermissoesSection />}
         {section === "planos" && <PlanosSection planos={planos} />}
-        {section === "ingressos" && <TiposIngressoSection />}
+        {section === "ingressos" && <TiposIngressoSection tipos={tiposIngresso} />}
         {section === "regras" && <RegrasAcessoSection />}
         {section === "catracas" && <CatracasSection />}
       </Card>

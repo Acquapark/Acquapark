@@ -134,10 +134,10 @@ export const associados: Associado[] = [
 ];
 
 export const tiposIngresso: TipoIngresso[] = [
-  { id: "t1", nome: "Diária Adulto", descricao: "Acesso de um dia para visitantes adultos", valor: 89.9, validade: "1 dia" },
-  { id: "t2", nome: "Diária Infantil", descricao: "Acesso de um dia para crianças de 3 a 11 anos", valor: 59.9, validade: "1 dia" },
-  { id: "t3", nome: "Diária Família (4 pessoas)", descricao: "Combo família com desconto", valor: 279.9, validade: "1 dia" },
-  { id: "t4", nome: "Meia-entrada", descricao: "Estudantes e idosos, mediante documento", valor: 44.9, validade: "1 dia" },
+  { id: "t1", nome: "Diária Adulto", descricao: "Acesso de um dia para visitantes adultos", valor: 89.9, validade: "1 dia", regraReentrada: "unica", ativo: true },
+  { id: "t2", nome: "Diária Infantil", descricao: "Acesso de um dia para crianças de 3 a 11 anos", valor: 59.9, validade: "1 dia", regraReentrada: "unica", ativo: true },
+  { id: "t3", nome: "Diária Família (4 pessoas)", descricao: "Combo família com desconto", valor: 279.9, validade: "1 dia", regraReentrada: "unica", ativo: true },
+  { id: "t4", nome: "Meia-entrada", descricao: "Estudantes e idosos, mediante documento", valor: 44.9, validade: "1 dia", regraReentrada: "unica", ativo: true },
 ];
 
 export const ingressos: Ingresso[] = [
