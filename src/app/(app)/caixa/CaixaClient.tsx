@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Lock, LockOpen, MinusCircle, PlusCircle, RotateCcw } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { Card, CardHeader } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
@@ -25,6 +26,7 @@ export function CaixaClient({ resumoAberto, historico }: { resumoAberto: CaixaRe
   const [movTipo, setMovTipo] = useState<CaixaMovimentoTipo | null>(null);
   const [fecharOpen, setFecharOpen] = useState(false);
   const [detalheId, setDetalheId] = useState<string | null>(null);
+  const { pode } = useAcesso();
   const [reabrindoId, setReabrindoId] = useState<string | null>(null);
   const [reabrirSaving, setReabrirSaving] = useState(false);
   const [error, setError] = useState("");
@@ -50,7 +52,7 @@ export function CaixaClient({ resumoAberto, historico }: { resumoAberto: CaixaRe
         title="Caixa"
         subtitle="Abertura, fechamento e movimentações do caixa"
         action={
-          !aberto ? (
+          !aberto && pode("caixa.abrir") ? (
             <Button onClick={() => setAbrirOpen(true)}>
               <LockOpen size={16} />
               Abrir caixa
@@ -80,18 +82,24 @@ export function CaixaClient({ resumoAberto, historico }: { resumoAberto: CaixaRe
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" size="sm" onClick={() => setMovTipo("Suprimento")}>
-                  <PlusCircle size={14} />
-                  Suprimento
-                </Button>
-                <Button variant="secondary" size="sm" onClick={() => setMovTipo("Sangria")}>
-                  <MinusCircle size={14} />
-                  Sangria
-                </Button>
-                <Button size="sm" onClick={() => setFecharOpen(true)}>
-                  <Lock size={14} />
-                  Fechar caixa
-                </Button>
+                {pode("caixa.movimentar") && (
+                  <>
+                    <Button variant="secondary" size="sm" onClick={() => setMovTipo("Suprimento")}>
+                      <PlusCircle size={14} />
+                      Suprimento
+                    </Button>
+                    <Button variant="secondary" size="sm" onClick={() => setMovTipo("Sangria")}>
+                      <MinusCircle size={14} />
+                      Sangria
+                    </Button>
+                  </>
+                )}
+                {pode("caixa.fechar") && (
+                  <Button size="sm" onClick={() => setFecharOpen(true)}>
+                    <Lock size={14} />
+                    Fechar caixa
+                  </Button>
+                )}
               </div>
             </div>
           </Card>
@@ -108,10 +116,12 @@ export function CaixaClient({ resumoAberto, historico }: { resumoAberto: CaixaRe
             <p className="max-w-sm text-xs text-gray-500">
               Abra o caixa para começar a vender ingressos. Sem um caixa aberto a Bilheteria fica bloqueada.
             </p>
-            <Button className="mt-2" onClick={() => setAbrirOpen(true)}>
-              <LockOpen size={16} />
-              Abrir caixa
-            </Button>
+            {pode("caixa.abrir") && (
+              <Button className="mt-2" onClick={() => setAbrirOpen(true)}>
+                <LockOpen size={16} />
+                Abrir caixa
+              </Button>
+            )}
           </div>
         </Card>
       )}
@@ -176,7 +186,7 @@ export function CaixaClient({ resumoAberto, historico }: { resumoAberto: CaixaRe
                       <Button variant="secondary" size="sm" onClick={() => setDetalheId(c.id)}>
                         Detalhes
                       </Button>
-                      {c.status === "Fechado" && (
+                      {c.status === "Fechado" && pode("caixa.reabrir") && (
                         <Button variant="ghost" size="sm" onClick={() => setReabrindoId(c.id)}>
                           <RotateCcw size={13} />
                           Reabrir

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 export interface ValidacaoResultado {
   autorizado: boolean;
@@ -121,6 +122,9 @@ async function validarCredencial(
 }
 
 export async function validarCodigo(codigoBruto: string): Promise<ValidacaoResultado> {
+  const negado = await exigirPermissao("controle_acesso.validar");
+  if (negado) return { autorizado: false, titulo: "Sem permissão", detalhe: "", motivo: negado.error };
+
   const codigo = codigoBruto.trim();
   if (!codigo) {
     return { autorizado: false, titulo: "Código vazio", detalhe: "", motivo: "Leia ou digite o código do QR Code." };

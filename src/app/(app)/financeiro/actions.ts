@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { FORMAS_PAGAMENTO_DESPESA } from "@/lib/financeiro-constantes";
+import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 export interface DespesaInput {
   descricao: string;
@@ -37,6 +38,8 @@ function toRow(input: DespesaInput) {
 }
 
 export async function createDespesa(input: DespesaInput) {
+  const negado = await exigirPermissao("despesas.criar");
+  if (negado) return { error: negado.error };
   const invalido = validar(input);
   if (invalido) return { error: invalido };
 
@@ -48,6 +51,8 @@ export async function createDespesa(input: DespesaInput) {
 }
 
 export async function updateDespesa(id: string, input: DespesaInput) {
+  const negado = await exigirPermissao("despesas.editar");
+  if (negado) return { error: negado.error };
   const invalido = validar(input);
   if (invalido) return { error: invalido };
 
@@ -59,6 +64,8 @@ export async function updateDespesa(id: string, input: DespesaInput) {
 }
 
 export async function pagarDespesa(id: string, params: { pagoEm: string; formaPagamento: string }) {
+  const negado = await exigirPermissao("despesas.pagar");
+  if (negado) return { error: negado.error };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(params.pagoEm)) return { error: "Informe a data do pagamento." };
   if (!FORMAS_PAGAMENTO_DESPESA.includes(params.formaPagamento)) return { error: "Selecione a forma de pagamento." };
 
@@ -76,6 +83,8 @@ export async function pagarDespesa(id: string, params: { pagoEm: string; formaPa
 }
 
 export async function desfazerPagamentoDespesa(id: string) {
+  const negado = await exigirPermissao("despesas.pagar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("despesas")
@@ -90,6 +99,8 @@ export async function desfazerPagamentoDespesa(id: string) {
 }
 
 export async function excluirDespesa(id: string) {
+  const negado = await exigirPermissao("despesas.excluir");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   // Despesa paga faz parte do histórico do fluxo de caixa: precisa desfazer o pagamento antes.
   const { data, error } = await supabase.from("despesas").delete().eq("id", id).eq("status", "Pendente").select("id");

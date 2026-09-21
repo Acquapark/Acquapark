@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { KeyRound, Lock, Unlock } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { Label, Input } from "@/components/ui/Field";
 import { Badge } from "@/components/ui/Badge";
 import { formatDate } from "@/lib/utils";
@@ -20,6 +21,7 @@ export function AcessoTabContent({
   emailSugerido: string;
 }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [email, setEmail] = useState(acesso?.email ?? emailSugerido);
   const [senha, setSenha] = useState("");
   const [confirmarSenha, setConfirmarSenha] = useState("");
@@ -83,6 +85,10 @@ export function AcessoTabContent({
     router.refresh();
   }
 
+  if (!acesso && !pode("acesso_portal.criar")) {
+    return <p className="text-sm text-gray-500">Este associado ainda não tem acesso ao Portal do Associado.</p>;
+  }
+
   if (!acesso) {
     return (
       <div className="max-w-md">
@@ -144,16 +150,18 @@ export function AcessoTabContent({
         </div>
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Button variant="secondary" size="sm" onClick={() => setRedefinindo((v) => !v)}>
-          <KeyRound size={14} />
-          Redefinir senha
-        </Button>
-        <Button variant={acesso.status === "Ativo" ? "destructive" : "secondary"} size="sm" onClick={handleToggleStatus} disabled={saving}>
-          {acesso.status === "Ativo" ? <Lock size={14} /> : <Unlock size={14} />}
-          {acesso.status === "Ativo" ? "Bloquear acesso" : "Desbloquear acesso"}
-        </Button>
-      </div>
+      {pode("acesso_portal.editar") && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" size="sm" onClick={() => setRedefinindo((v) => !v)}>
+            <KeyRound size={14} />
+            Redefinir senha
+          </Button>
+          <Button variant={acesso.status === "Ativo" ? "destructive" : "secondary"} size="sm" onClick={handleToggleStatus} disabled={saving}>
+            {acesso.status === "Ativo" ? <Lock size={14} /> : <Unlock size={14} />}
+            {acesso.status === "Ativo" ? "Bloquear acesso" : "Desbloquear acesso"}
+          </Button>
+        </div>
+      )}
 
       {redefinindo && (
         <div className="mt-4 space-y-4 rounded-[6px] border border-gray-200 bg-gray-50 p-4">

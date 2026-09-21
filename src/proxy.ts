@@ -1,5 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { carregarAcesso } from "@/lib/acesso";
+import { regraDaRota, rotaInicial, temAlgumaPermissao } from "@/lib/permissoes";
 
 const PORTAL_PUBLIC_PATHS = ["/portal/login", "/portal/esqueci-senha", "/portal/redefinir-senha"];
 
@@ -74,15 +76,21 @@ export async function proxy(request: NextRequest) {
     return response;
   }
 
-  const { data: staffRow } = await supabase.from("usuarios").select("id").eq("id", userId).maybeSingle();
-  const isStaff = !!staffRow;
+  // Equipe = linha ativa em `usuarios`; o grupo dela define o que pode abrir.
+  // Uma consulta só (usuário + grupo + permissões), a mesma ida ao banco de antes.
+  const acesso = await carregarAcesso(supabase, userId);
 
   if (isAdminLoginPage) {
-    if (isStaff) return redirectTo("/dashboard");
+    if (acesso) return redirectTo(rotaInicial(acesso) ?? "/sem-acesso");
     return response;
   }
 
-  if (!isStaff) return redirectTo("/login");
+  if (!acesso) return redirectTo("/login");
+
+  const regra = regraDaRota(pathname);
+  if (regra && !temAlgumaPermissao(acesso, regra.qualquer)) {
+    return redirectTo(rotaInicial(acesso) ?? "/sem-acesso");
+  }
   return response;
 }
 

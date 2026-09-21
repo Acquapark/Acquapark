@@ -9,6 +9,7 @@ import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Tab
 import { Badge } from "@/components/ui/Badge";
 import { formatCPF, formatDate } from "@/lib/utils";
 import { Dependente, Plano } from "@/types";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { addDependente, removeDependente } from "@/app/(app)/associados/actions";
 
 const emptyDraft = { nome: "", cpf: "", rg: "", nascimento: "", parentesco: "", sexo: "" };
@@ -23,6 +24,7 @@ export function ProfileDependentesTab({
   plano: Plano | null;
 }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState(emptyDraft);
   const [error, setError] = useState("");
@@ -90,10 +92,12 @@ export function ProfileDependentesTab({
             {plano ? `Plano ${plano.nome} permite até ${limite} dependente(s).` : "Vincule um plano ao associado para poder adicionar dependentes."}
           </p>
         </div>
-        <Button size="sm" variant="secondary" onClick={handleOpenForm} disabled={semPlano}>
-          <Plus size={14} />
-          Adicionar Dependente
-        </Button>
+        {pode("dependentes.criar") && (
+          <Button size="sm" variant="secondary" onClick={handleOpenForm} disabled={semPlano}>
+            <Plus size={14} />
+            Adicionar Dependente
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -130,13 +134,15 @@ export function ProfileDependentesTab({
                 <Badge tone="success">{d.status}</Badge>
               </Td>
               <Td>
-                <button
-                  onClick={() => handleRemove(d.id)}
-                  disabled={removingId === d.id}
-                  className="flex h-7 w-7 items-center justify-center rounded-[4px] text-gray-400 hover:bg-danger-50 hover:text-danger-600 disabled:opacity-50"
-                >
-                  <Trash2 size={14} />
-                </button>
+                {pode("dependentes.excluir") && (
+                  <button
+                    onClick={() => handleRemove(d.id)}
+                    disabled={removingId === d.id}
+                    className="flex h-7 w-7 items-center justify-center rounded-[4px] text-gray-400 hover:bg-danger-50 hover:text-danger-600 disabled:opacity-50"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                )}
               </Td>
             </Tr>
           ))}

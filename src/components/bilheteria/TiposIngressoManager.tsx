@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { formatCurrency } from "@/lib/utils";
@@ -13,6 +14,7 @@ import { REGRA_REENTRADA_LABEL, TipoIngressoModal } from "./TipoIngressoModal";
 
 export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; title?: string }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<TipoIngresso | null>(null);
   const [modalKey, setModalKey] = useState(0);
@@ -47,10 +49,12 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-800">{title ?? "Tipos de Ingresso"}</h2>
-        <Button size="sm" onClick={openNew}>
-          <Plus size={14} />
-          Novo Tipo
-        </Button>
+        {pode("tipos_ingresso.criar") && (
+          <Button size="sm" onClick={openNew}>
+            <Plus size={14} />
+            Novo Tipo
+          </Button>
+        )}
       </div>
 
       {error && (
@@ -84,14 +88,16 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
                 <Badge tone={t.ativo ? "success" : "neutral"}>{t.ativo ? "Ativo" : "Inativo"}</Badge>
               </Td>
               <Td>
-                <div className="flex gap-1.5">
-                  <Button variant="secondary" size="sm" onClick={() => openEdit(t)}>
-                    Editar
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => handleToggle(t)} disabled={togglingId === t.id}>
-                    {t.ativo ? "Desativar" : "Ativar"}
-                  </Button>
-                </div>
+                {pode("tipos_ingresso.editar") && (
+                  <div className="flex gap-1.5">
+                    <Button variant="secondary" size="sm" onClick={() => openEdit(t)}>
+                      Editar
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => handleToggle(t)} disabled={togglingId === t.id}>
+                      {t.ativo ? "Desativar" : "Ativar"}
+                    </Button>
+                  </div>
+                )}
               </Td>
             </Tr>
           ))}

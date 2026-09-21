@@ -7,8 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { Empresa } from "@/lib/contracts/variables";
 import { saveEmpresa } from "@/app/(app)/contratos/actions";
 import { formatCEP } from "@/lib/utils";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 
 export function DadosParqueSection({ empresa }: { empresa: Empresa }) {
+  const { pode } = useAcesso();
   const [form, setForm] = useState(empresa);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
@@ -139,9 +141,11 @@ export function DadosParqueSection({ empresa }: { empresa: Empresa }) {
 
       <div className="mt-5 flex items-center justify-end gap-3">
         {savedMsg && <span className="text-xs font-medium text-success-600">{savedMsg}</span>}
-        <Button onClick={handleSave} disabled={saving}>
-          {saving ? "Salvando..." : "Salvar alterações"}
-        </Button>
+        {pode("parque.editar") && (
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? "Salvando..." : "Salvar alterações"}
+          </Button>
+        )}
       </div>
     </div>
   );

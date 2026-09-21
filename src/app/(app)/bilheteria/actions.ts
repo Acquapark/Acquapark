@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { RegraReentrada } from "@/types";
+import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 export interface TipoIngressoInput {
   nome: string;
@@ -25,6 +26,8 @@ function validar(input: TipoIngressoInput): string | null {
 }
 
 export async function createTipoIngresso(input: TipoIngressoInput) {
+  const negado = await exigirPermissao("tipos_ingresso.criar");
+  if (negado) return { error: negado.error };
   const invalido = validar(input);
   if (invalido) return { error: invalido };
 
@@ -43,6 +46,8 @@ export async function createTipoIngresso(input: TipoIngressoInput) {
 }
 
 export async function updateTipoIngresso(id: string, input: TipoIngressoInput) {
+  const negado = await exigirPermissao("tipos_ingresso.editar");
+  if (negado) return { error: negado.error };
   const invalido = validar(input);
   if (invalido) return { error: invalido };
 
@@ -64,6 +69,8 @@ export async function updateTipoIngresso(id: string, input: TipoIngressoInput) {
 }
 
 export async function setTipoIngressoAtivo(id: string, ativo: boolean) {
+  const negado = await exigirPermissao("tipos_ingresso.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("tipos_ingresso").update({ ativo }).eq("id", id);
   if (error) return { error: error.message };
@@ -79,6 +86,8 @@ export async function venderIngresso(params: {
   dataUtilizacao: string;
   formaPagamento: string;
 }) {
+  const negado = await exigirPermissao("ingressos.criar");
+  if (negado) return { error: negado.error };
   if (!params.tipoId) return { error: "Selecione o tipo de ingresso." };
   if (!params.comprador.trim()) return { error: "Informe o nome do comprador." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(params.dataUtilizacao)) return { error: "Informe a data de utilização." };
@@ -100,6 +109,8 @@ export async function venderIngresso(params: {
 }
 
 export async function cancelarIngresso(id: string) {
+  const negado = await exigirPermissao("ingressos.cancelar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.rpc("cancelar_ingresso", { p_ingresso_id: id });
   if (error) return { error: error.message };

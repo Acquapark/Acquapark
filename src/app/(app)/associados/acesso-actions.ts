@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 /**
  * A service role key ignora RLS — então as ações abaixo (que a usam para
@@ -21,6 +22,8 @@ async function assertStaff() {
 }
 
 export async function criarAcessoAssociado(associadoId: string, email: string, senha: string) {
+  const negado = await exigirPermissao("acesso_portal.criar");
+  if (negado) return { error: negado.error };
   if (!(await assertStaff())) return { error: "Não autorizado." };
   if (!email) return { error: "Informe o e-mail de acesso." };
   if (senha.length < 6) return { error: "A senha deve ter pelo menos 6 caracteres." };
@@ -52,6 +55,8 @@ export async function criarAcessoAssociado(associadoId: string, email: string, s
 }
 
 export async function redefinirSenhaAssociado(associadoId: string, acessoId: string, novaSenha: string) {
+  const negado = await exigirPermissao("acesso_portal.editar");
+  if (negado) return { error: negado.error };
   if (!(await assertStaff())) return { error: "Não autorizado." };
   if (novaSenha.length < 6) return { error: "A senha deve ter pelo menos 6 caracteres." };
 
@@ -64,6 +69,8 @@ export async function redefinirSenhaAssociado(associadoId: string, acessoId: str
 }
 
 export async function setAcessoStatus(associadoId: string, status: "Ativo" | "Bloqueado") {
+  const negado = await exigirPermissao("acesso_portal.editar");
+  if (negado) return { error: negado.error };
   if (!(await assertStaff())) return { error: "Não autorizado." };
 
   const supabase = await createClient();

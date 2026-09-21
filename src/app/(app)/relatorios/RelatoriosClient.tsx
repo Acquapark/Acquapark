@@ -10,11 +10,17 @@ import { RelatorioConteudo } from "@/components/relatorios/RelatorioConteudo";
 import { RELATORIOS, Relatorio, RelatorioId, formatarCelula, rotuloPeriodo } from "@/lib/relatorios/tipos";
 import { baixarCsv, baixarExcel } from "@/lib/relatorios/exportar";
 import { gerarRelatorioAction } from "./actions";
+import { useAcesso } from "@/components/providers/AcessoProvider";
+import { permissaoDoRelatorio } from "@/lib/permissoes";
 
 type Formato = "PDF" | "Excel" | "CSV";
 
 export function RelatoriosClient({ inicioPadrao, fimPadrao }: { inicioPadrao: string; fimPadrao: string }) {
-  const [selecionado, setSelecionado] = useState<RelatorioId>(RELATORIOS[0].id);
+  const { pode } = useAcesso();
+  // Só os relatórios que o grupo do usuário pode gerar (a Server Action confere de novo).
+  const disponiveis = RELATORIOS.filter((r) => pode(permissaoDoRelatorio(r.id)));
+  const podeExportar = pode("exportacao_relatorios.exportar");
+  const [selecionado, setSelecionado] = useState<RelatorioId>((disponiveis[0] ?? RELATORIOS[0]).id);
   const [de, setDe] = useState(inicioPadrao);
   const [ate, setAte] = useState(fimPadrao);
   const [formato, setFormato] = useState<Formato>("PDF");
@@ -76,7 +82,7 @@ export function RelatoriosClient({ inicioPadrao, fimPadrao }: { inicioPadrao: st
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[280px_1fr]">
         <Card className="h-fit">
           <div className="divide-y divide-gray-100">
-            {RELATORIOS.map((r) => (
+            {disponiveis.map((r) => (
               <button
                 key={r.id}
                 onClick={() => selecionar(r.id)}
@@ -104,22 +110,26 @@ export function RelatoriosClient({ inicioPadrao, fimPadrao }: { inicioPadrao: st
               <Label>Data final</Label>
               <Input type="date" className="w-40" value={ate} onChange={(e) => setAte(e.target.value)} disabled={!usaPeriodo} />
             </div>
-            <div>
-              <Label>Formato</Label>
-              <Select className="w-32" value={formato} onChange={(e) => setFormato(e.target.value as Formato)}>
-                <option>PDF</option>
-                <option>Excel</option>
-                <option>CSV</option>
-              </Select>
-            </div>
+            {podeExportar && (
+              <div>
+                <Label>Formato</Label>
+                <Select className="w-32" value={formato} onChange={(e) => setFormato(e.target.value as Formato)}>
+                  <option>PDF</option>
+                  <option>Excel</option>
+                  <option>CSV</option>
+                </Select>
+              </div>
+            )}
             <Button variant="secondary" onClick={gerar} disabled={carregando}>
               {carregando ? <Loader2 size={15} className="animate-spin" /> : null}
               {carregando ? "Gerando..." : "Filtrar"}
             </Button>
-            <Button className="ml-auto" onClick={exportar} disabled={!relatorio || exportando}>
-              <Download size={15} />
-              {exportando ? "Exportando..." : "Exportar"}
-            </Button>
+            {podeExportar && (
+              <Button className="ml-auto" onClick={exportar} disabled={!relatorio || exportando}>
+                <Download size={15} />
+                {exportando ? "Exportando..." : "Exportar"}
+              </Button>
+            )}
           </div>
 
           {erro && (

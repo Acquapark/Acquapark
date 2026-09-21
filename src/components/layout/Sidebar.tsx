@@ -23,6 +23,8 @@ import {
   Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAcesso } from "@/components/providers/AcessoProvider";
+import { ROTAS, SECOES_CONFIGURACOES } from "@/lib/permissoes";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -35,24 +37,28 @@ const NAV_ITEMS = [
   { href: "/relatorios", label: "Relatórios", icon: BarChart3 },
 ];
 
-const CONFIG_SUBITEMS = [
-  { key: "parque", label: "Dados do Parque", icon: Building2 },
-  { key: "usuarios", label: "Usuários", icon: Users },
-  { key: "permissoes", label: "Permissões", icon: KeyRound },
-  { key: "planos", label: "Planos", icon: CreditCard },
-  { key: "ingressos", label: "Tipos de Ingresso", icon: Ticket },
-  { key: "regras", label: "Regras de Acesso", icon: ShieldCheck },
-  { key: "catracas", label: "Catracas", icon: DoorClosed },
-];
+const CONFIG_ICONS = {
+  parque: Building2,
+  usuarios: Users,
+  permissoes: KeyRound,
+  planos: CreditCard,
+  ingressos: Ticket,
+  regras: ShieldCheck,
+  catracas: DoorClosed,
+} as const;
 
 function ConfigNavView({ activeSection, onNavigate }: { activeSection: string; onNavigate?: () => void }) {
   const pathname = usePathname();
   const isConfigRoute = pathname.startsWith("/configuracoes");
+  const { pode } = useAcesso();
+  const secoes = SECOES_CONFIGURACOES.filter((s) => pode(s.permissao));
   const [expanded, setExpanded] = useState(isConfigRoute);
 
   useEffect(() => {
     if (isConfigRoute) setExpanded(true);
   }, [isConfigRoute]);
+
+  if (secoes.length === 0) return null;
 
   return (
     <div>
@@ -72,9 +78,9 @@ function ConfigNavView({ activeSection, onNavigate }: { activeSection: string; o
 
       {expanded && (
         <div className="mt-0.5 space-y-0.5 border-l border-gray-200 pl-3.5">
-          {CONFIG_SUBITEMS.map((item) => {
+          {secoes.map((item) => {
             const active = isConfigRoute && activeSection === item.key;
-            const Icon = item.icon;
+            const Icon = CONFIG_ICONS[item.key];
             return (
               <Link
                 key={item.key}
@@ -118,6 +124,11 @@ export function Sidebar({
   onClose?: () => void;
 }) {
   const pathname = usePathname();
+  const { podeAlguma } = useAcesso();
+  const itens = NAV_ITEMS.filter((item) => {
+    const regra = ROTAS.find((r) => r.prefixo === item.href);
+    return !regra || podeAlguma(...regra.qualquer);
+  });
 
   return (
     <>
@@ -147,7 +158,7 @@ export function Sidebar({
         </div>
 
         <nav className="flex-1 space-y-0.5 overflow-y-auto px-2 py-3">
-          {NAV_ITEMS.map((item) => {
+          {itens.map((item) => {
             const active = pathname === item.href || pathname.startsWith(item.href + "/");
             const Icon = item.icon;
             return (

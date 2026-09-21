@@ -7,6 +7,7 @@ import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
 import { calcularPrimeiroVencimento, gerarParcelas } from "@/lib/mensalidades-engine";
 import { RegraPrimeiraParcela } from "@/types";
+import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 function formatarDataBR(iso: string): string {
   return iso.split("-").reverse().join("/");
@@ -164,6 +165,13 @@ async function criarContratoEMensalidades(
 }
 
 export async function createAssociado(form: AssociadoFormState) {
+  const negado = await exigirPermissao("associados.criar");
+  if (negado) return { error: negado.error };
+  // O cadastro pode já vincular um plano (gera contrato e mensalidades): isso tem permissão própria.
+  if (form.planoId) {
+    const semPlano = await exigirPermissao("planos_associado.criar");
+    if (semPlano) return { error: "Você não tem permissão para vincular plano. Cadastre o associado sem plano." };
+  }
   const supabase = await createClient();
 
   if (form.planoId && form.dataInicio) {
@@ -244,6 +252,8 @@ export async function createAssociado(form: AssociadoFormState) {
 }
 
 export async function deleteAssociado(id: string) {
+  const negado = await exigirPermissao("associados.excluir");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("associados").delete().eq("id", id);
   if (error) {
@@ -254,6 +264,8 @@ export async function deleteAssociado(id: string) {
 }
 
 export async function updateAssociado(id: string, form: AssociadoFormState) {
+  const negado = await exigirPermissao("associados.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
 
   const { error } = await supabase
@@ -290,6 +302,8 @@ export async function addDependente(
   associadoId: string,
   dependente: { nome: string; cpf?: string; rg?: string; nascimento?: string; parentesco: string; sexo?: string },
 ) {
+  const negado = await exigirPermissao("dependentes.criar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
 
   const { error } = await supabase.from("dependentes").insert({
@@ -309,6 +323,8 @@ export async function addDependente(
 }
 
 export async function removeDependente(dependenteId: string, associadoId: string) {
+  const negado = await exigirPermissao("dependentes.excluir");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("dependentes").delete().eq("id", dependenteId);
   if (error) return { error: error.message };
@@ -318,6 +334,8 @@ export async function removeDependente(dependenteId: string, associadoId: string
 }
 
 export async function updateAssociadoStatus(id: string, status: AssociadoStatus) {
+  const negado = await exigirPermissao("associados.alterar_status");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("associados").update({ status }).eq("id", id);
   if (error) return { error: error.message };
@@ -328,6 +346,9 @@ export async function updateAssociadoStatus(id: string, status: AssociadoStatus)
 }
 
 export async function ensureCredencial(associadoId: string) {
+  // Roda sozinha ao abrir a aba Credencial: quem só visualiza recebe a existente, mas não cria uma nova.
+  const negado = await exigirPermissao("credenciais.visualizar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
 
   const { data: existing } = await supabase
@@ -340,6 +361,9 @@ export async function ensureCredencial(associadoId: string) {
     .maybeSingle();
 
   if (existing) return { codigo: existing.codigo as string };
+
+  const semCriar = await exigirPermissao("credenciais.criar");
+  if (semCriar) return { error: "Este associado ainda não tem credencial e você não pode gerá-la." };
 
   const { data, error } = await supabase
     .from("credenciais")
@@ -354,6 +378,8 @@ export async function ensureCredencial(associadoId: string) {
 }
 
 export async function regenerarCredencial(associadoId: string) {
+  const negado = await exigirPermissao("credenciais.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
 
   await supabase.from("credenciais").update({ ativa: false }).eq("associado_id", associadoId).eq("ativa", true);
@@ -377,6 +403,8 @@ export async function vincularPlano(
   valorOverride?: number,
   primeiraParcelaManual?: string,
 ) {
+  const negado = await exigirPermissao("planos_associado.criar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
 
   const { data: existente } = await supabase
@@ -411,6 +439,8 @@ export async function registrarPagamento(
   associadoId: string,
   params: { formaPagamento: string; valor: number },
 ) {
+  const negado = await exigirPermissao("contas_receber.receber");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const {
     data: { user },

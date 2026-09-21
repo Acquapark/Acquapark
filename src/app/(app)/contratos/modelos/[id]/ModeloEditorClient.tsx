@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Bold, Eye, Italic, Underline, Users } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Select } from "@/components/ui/Field";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
@@ -21,7 +22,9 @@ export function ModeloEditorClient({
 }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const [versao, setVersao] = useState(modelo.versao);
-  const [readOnly, setReadOnly] = useState(false);
+  const { pode } = useAcesso();
+  const podeEditar = pode("modelos_contrato.editar");
+  const [readOnly, setReadOnly] = useState(!podeEditar);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -103,17 +106,21 @@ export function ModeloEditorClient({
 
         <div className="flex items-center gap-2">
           {savedMsg && <span className="text-xs font-medium text-success-600">{savedMsg}</span>}
-          <Button variant="secondary" size="sm" onClick={() => setReadOnly((v) => !v)}>
-            <Eye size={14} />
-            {readOnly ? "Editar" : "Visualizar modelo"}
-          </Button>
+          {podeEditar && (
+            <Button variant="secondary" size="sm" onClick={() => setReadOnly((v) => !v)}>
+              <Eye size={14} />
+              {readOnly ? "Editar" : "Visualizar modelo"}
+            </Button>
+          )}
           <Button variant="secondary" size="sm" onClick={() => setPreviewOpen(true)}>
             <Users size={14} />
             Pré-visualizar com associado
           </Button>
-          <Button size="sm" onClick={handleSave} disabled={saving || readOnly}>
-            {saving ? "Salvando..." : "Salvar"}
-          </Button>
+          {podeEditar && (
+            <Button size="sm" onClick={handleSave} disabled={saving || readOnly}>
+              {saving ? "Salvando..." : "Salvar"}
+            </Button>
+          )}
         </div>
       </div>
 

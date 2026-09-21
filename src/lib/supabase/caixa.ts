@@ -35,12 +35,11 @@ export async function getCaixaAberto(supabase: SupabaseClient, operadorId: strin
   return mapCaixa(data as unknown as Row);
 }
 
-export async function getCaixas(supabase: SupabaseClient, limit = 40): Promise<Caixa[]> {
-  const { data, error } = await supabase
-    .from("caixas")
-    .select(CAIXA_SELECT)
-    .order("aberto_em", { ascending: false })
-    .limit(limit);
+/** apenasOperadorId: restringe ao histórico de um operador (quem não pode ver os caixas dos outros). */
+export async function getCaixas(supabase: SupabaseClient, limit = 40, apenasOperadorId?: string): Promise<Caixa[]> {
+  let query = supabase.from("caixas").select(CAIXA_SELECT).order("aberto_em", { ascending: false }).limit(limit);
+  if (apenasOperadorId) query = query.eq("operador_id", apenasOperadorId);
+  const { data, error } = await query;
   if (error) throw error;
   return (data as unknown as Row[]).map(mapCaixa);
 }

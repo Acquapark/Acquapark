@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, CreditCard, Plus, Search, TrendingDown, TrendingUp, Undo2, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { Card, KpiCard } from "@/components/ui/Card";
 import { Tabs } from "@/components/ui/Tabs";
 import { Input, Select } from "@/components/ui/Field";
@@ -20,6 +21,13 @@ import { DespesaModal, PagarDespesaModal } from "@/components/financeiro/Despesa
 import { desfazerPagamentoDespesa, excluirDespesa } from "./actions";
 
 type TabKey = "receber" | "recebimentos" | "despesas" | "fluxo";
+
+const ABAS: { key: TabKey; label: string; permissao: string }[] = [
+  { key: "receber", label: "Contas a Receber", permissao: "contas_receber.visualizar" },
+  { key: "recebimentos", label: "Recebimentos", permissao: "recebimentos.visualizar" },
+  { key: "despesas", label: "Despesas", permissao: "despesas.visualizar" },
+  { key: "fluxo", label: "Fluxo de Caixa", permissao: "fluxo_caixa.visualizar" },
+];
 
 const STATUS_TONE: Record<string, StatusTone> = {
   Pendente: "warning",
@@ -48,8 +56,10 @@ export function FinanceiroClient({
   despesas: Despesa[];
 }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [, startTransition] = useTransition();
-  const [tab, setTab] = useState<TabKey>("receber");
+  const abasLiberadas = ABAS.filter((a) => pode(a.permissao));
+  const [tab, setTab] = useState<TabKey>(abasLiberadas[0]?.key ?? "receber");
 
   // Contas a receber
   const [filtroConta, setFiltroConta] = useState("Todas");
@@ -186,7 +196,7 @@ export function FinanceiroClient({
                 <option value="todos">Todos os períodos</option>
               </Select>
             </div>
-            {tab === "despesas" && (
+            {tab === "despesas" && pode("despesas.criar") && (
               <Button onClick={() => abrirDespesa(null)}>
                 <Plus size={16} />
                 Nova Despesa
@@ -211,12 +221,7 @@ export function FinanceiroClient({
       <Card className="mt-5">
         <div className="px-4">
           <Tabs
-            tabs={[
-              { key: "receber", label: "Contas a Receber" },
-              { key: "recebimentos", label: "Recebimentos" },
-              { key: "despesas", label: "Despesas" },
-              { key: "fluxo", label: "Fluxo de Caixa" },
-            ]}
+            tabs={abasLiberadas.map(({ key, label }) => ({ key, label }))}
             active={tab}
             onChange={(k) => setTab(k as TabKey)}
           />
@@ -268,6 +273,7 @@ export function FinanceiroClient({
                       <Badge tone={STATUS_TONE[c.status]}>{c.status}</Badge>
                     </Td>
                     <Td>
+                      {pode("contas_receber.receber") && (
                       <Button
                         variant="secondary"
                         size="sm"
@@ -286,6 +292,7 @@ export function FinanceiroClient({
                         <CreditCard size={13} />
                         Dar baixa
                       </Button>
+                      )}
                     </Td>
                   </Tr>
                 ))}
@@ -429,21 +436,29 @@ export function FinanceiroClient({
                         <div className="flex gap-1.5">
                           {d.status !== "Pago" ? (
                             <>
-                              <Button variant="secondary" size="sm" onClick={() => setPagando(d)}>
-                                Pagar
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => abrirDespesa(d)}>
-                                Editar
-                              </Button>
-                              <Button variant="ghost" size="sm" onClick={() => setExcluindoId(d.id)}>
-                                Excluir
-                              </Button>
+                              {pode("despesas.pagar") && (
+                                <Button variant="secondary" size="sm" onClick={() => setPagando(d)}>
+                                  Pagar
+                                </Button>
+                              )}
+                              {pode("despesas.editar") && (
+                                <Button variant="ghost" size="sm" onClick={() => abrirDespesa(d)}>
+                                  Editar
+                                </Button>
+                              )}
+                              {pode("despesas.excluir") && (
+                                <Button variant="ghost" size="sm" onClick={() => setExcluindoId(d.id)}>
+                                  Excluir
+                                </Button>
+                              )}
                             </>
                           ) : (
-                            <Button variant="ghost" size="sm" onClick={() => handleDesfazer(d.id)} disabled={despesaSaving}>
-                              <Undo2 size={13} />
-                              Desfazer pagamento
-                            </Button>
+                            pode("despesas.pagar") && (
+                              <Button variant="ghost" size="sm" onClick={() => handleDesfazer(d.id)} disabled={despesaSaving}>
+                                <Undo2 size={13} />
+                                Desfazer pagamento
+                              </Button>
+                            )
                           )}
                         </div>
                       )}

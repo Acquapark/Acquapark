@@ -11,6 +11,7 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { Contrato, Plano } from "@/types";
 import { vincularPlano } from "@/app/(app)/associados/actions";
 import { parcelasDoPlano } from "@/lib/mensalidades-engine";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 
 export function ProfilePlanoTab({
   associadoId,
@@ -22,6 +23,7 @@ export function ProfilePlanoTab({
   planos: Plano[];
 }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [planoId, setPlanoId] = useState("");
   const [dataInicio, setDataInicio] = useState(new Date().toISOString().slice(0, 10));
   const [primeiraParcelaData, setPrimeiraParcelaData] = useState("");
@@ -96,6 +98,10 @@ export function ProfilePlanoTab({
         </p>
       </div>
     );
+  }
+
+  if (!pode("planos_associado.criar")) {
+    return <p className="text-sm text-gray-500">Este associado ainda não tem um contrato ativo.</p>;
   }
 
   return (

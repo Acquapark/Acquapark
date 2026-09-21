@@ -5,6 +5,8 @@ import { catracas } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/server";
 import { getAcessosRecentes } from "@/lib/supabase/bilheteria";
 import { getAcessosHoje } from "@/lib/supabase/acessos";
+import { getAcessoAtual } from "@/lib/auth/acesso-atual";
+import { temPermissao } from "@/lib/permissoes";
 import { CatracaCard } from "./CatracaCard";
 import { QrValidator } from "./QrValidator";
 import { AutoRefresh } from "./AutoRefresh";
@@ -13,6 +15,7 @@ const qtd = (n: number, singular: string, plural: string) => `${n.toLocaleString
 
 export default async function ControleAcessoPage() {
   const supabase = await createClient();
+  const podeValidar = temPermissao(await getAcessoAtual(), "controle_acesso.validar");
   const [acessosRecentes, acessosHoje] = await Promise.all([
     getAcessosRecentes(supabase, 8),
     getAcessosHoje(supabase),
@@ -109,7 +112,7 @@ export default async function ControleAcessoPage() {
           </Card>
         </div>
 
-        <QrValidator />
+        {podeValidar && <QrValidator />}
       </div>
     </div>
   );

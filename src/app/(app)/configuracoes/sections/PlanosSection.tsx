@@ -8,8 +8,10 @@ import { Badge } from "@/components/ui/Badge";
 import { Plano } from "@/types";
 import { formatCurrency } from "@/lib/utils";
 import { PlanoModal } from "@/components/configuracoes/PlanoModal";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 
 export function PlanosSection({ planos }: { planos: Plano[] }) {
+  const { pode } = useAcesso();
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Plano | null>(null);
 
@@ -27,10 +29,12 @@ export function PlanosSection({ planos }: { planos: Plano[] }) {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-sm font-semibold text-gray-800">Planos de Associados</h2>
-        <Button size="sm" onClick={openNew}>
-          <Plus size={14} />
-          Novo Plano
-        </Button>
+        {pode("planos.criar") && (
+          <Button size="sm" onClick={openNew}>
+            <Plus size={14} />
+            Novo Plano
+          </Button>
+        )}
       </div>
 
       <Table className="rounded-[6px] border border-gray-200">
@@ -58,9 +62,11 @@ export function PlanosSection({ planos }: { planos: Plano[] }) {
                 <Badge tone={p.ativo ? "success" : "neutral"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>
               </Td>
               <Td>
-                <Button variant="secondary" size="sm" onClick={() => openEdit(p)}>
-                  Editar
-                </Button>
+                {pode("planos.editar") && (
+                  <Button variant="secondary" size="sm" onClick={() => openEdit(p)}>
+                    Editar
+                  </Button>
+                )}
               </Td>
             </Tr>
           ))}

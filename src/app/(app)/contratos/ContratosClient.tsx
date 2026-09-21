@@ -15,10 +15,12 @@ import { formatDate } from "@/lib/utils";
 import { ModeloContrato } from "@/lib/supabase/contratos";
 import { NovoModeloModal } from "@/components/contratos/NovoModeloModal";
 import { VariaveisTab } from "@/components/contratos/VariaveisTab";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { deleteModelo, duplicateModelo, toggleModeloStatus } from "./actions";
 
 export function ContratosClient({ modelos }: { modelos: ModeloContrato[] }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [tab, setTab] = useState<"modelos" | "variaveis">("modelos");
   const [modalOpen, setModalOpen] = useState(false);
   const [deleting, setDeleting] = useState<ModeloContrato | null>(null);
@@ -49,7 +51,7 @@ export function ContratosClient({ modelos }: { modelos: ModeloContrato[] }) {
         title="Contratos"
         subtitle="Gerencie modelos e contratos dos associados."
         action={
-          tab === "modelos" ? (
+          tab === "modelos" && pode("modelos_contrato.criar") ? (
             <Button onClick={() => setModalOpen(true)}>
               <Plus size={16} />
               Novo Modelo
@@ -102,11 +104,19 @@ export function ContratosClient({ modelos }: { modelos: ModeloContrato[] }) {
                     <div onClick={(e) => e.stopPropagation()}>
                       <RowMenu
                         items={[
-                          { label: "Editar", onClick: () => router.push(`/contratos/modelos/${m.id}`) },
+                          ...(pode("modelos_contrato.editar")
+                            ? [{ label: "Editar", onClick: () => router.push(`/contratos/modelos/${m.id}`) }]
+                            : []),
                           { label: "Visualizar", onClick: () => router.push(`/contratos/modelos/${m.id}?preview=1`) },
-                          { label: "Duplicar", onClick: () => handleDuplicate(m.id) },
-                          { label: m.status === "Ativo" ? "Inativar" : "Ativar", onClick: () => handleToggleStatus(m) },
-                          { label: "Excluir", onClick: () => setDeleting(m), destructive: true },
+                          ...(pode("modelos_contrato.criar")
+                            ? [{ label: "Duplicar", onClick: () => handleDuplicate(m.id) }]
+                            : []),
+                          ...(pode("modelos_contrato.editar")
+                            ? [{ label: m.status === "Ativo" ? "Inativar" : "Ativar", onClick: () => handleToggleStatus(m) }]
+                            : []),
+                          ...(pode("modelos_contrato.excluir")
+                            ? [{ label: "Excluir", onClick: () => setDeleting(m), destructive: true }]
+                            : []),
                         ]}
                       />
                     </div>

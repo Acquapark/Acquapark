@@ -6,8 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 import { getAssociadoById, getPlanos } from "@/lib/supabase/associados";
 import { getEmpresa, getModeloById } from "@/lib/supabase/contratos";
 import { findMissingVariables, substituteVariables } from "@/lib/contracts/variables";
+import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 export async function createModelo(formData: FormData) {
+  const negado = await exigirPermissao("modelos_contrato.criar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
 
   const nome = String(formData.get("nome") ?? "");
@@ -64,6 +67,8 @@ export async function createModelo(formData: FormData) {
 }
 
 export async function updateModeloConteudo(id: string, conteudoHtml: string) {
+  const negado = await exigirPermissao("modelos_contrato.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const modelo = await getModeloById(supabase, id);
   if (!modelo) return { error: "Modelo não encontrado." };
@@ -83,6 +88,8 @@ export async function updateModeloDados(
   id: string,
   data: { nome: string; descricao: string; tipo: string; status: "Ativo" | "Inativo" },
 ) {
+  const negado = await exigirPermissao("modelos_contrato.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase
     .from("modelos_contrato")
@@ -95,6 +102,8 @@ export async function updateModeloDados(
 }
 
 export async function toggleModeloStatus(id: string, status: "Ativo" | "Inativo") {
+  const negado = await exigirPermissao("modelos_contrato.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("modelos_contrato").update({ status }).eq("id", id);
   if (error) return { error: error.message };
@@ -103,6 +112,8 @@ export async function toggleModeloStatus(id: string, status: "Ativo" | "Inativo"
 }
 
 export async function duplicateModelo(id: string) {
+  const negado = await exigirPermissao("modelos_contrato.criar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const modelo = await getModeloById(supabase, id);
   if (!modelo) return { error: "Modelo não encontrado." };
@@ -125,6 +136,8 @@ export async function duplicateModelo(id: string) {
 }
 
 export async function deleteModelo(id: string) {
+  const negado = await exigirPermissao("modelos_contrato.excluir");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("modelos_contrato").delete().eq("id", id);
   if (error) return { error: error.message };
@@ -146,6 +159,8 @@ export async function saveEmpresa(data: {
   estado: string;
   cep: string;
 }) {
+  const negado = await exigirPermissao("parque.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase
     .from("empresa")
@@ -170,6 +185,8 @@ export async function saveEmpresa(data: {
 }
 
 export async function getPreviewData(associadoId: string) {
+  const negado = await exigirPermissao("contratos_gerados.criar", "modelos_contrato.visualizar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const [result, empresa, planos] = await Promise.all([
     getAssociadoById(supabase, associadoId),
@@ -182,6 +199,8 @@ export async function getPreviewData(associadoId: string) {
 }
 
 export async function checkContratoMissingVariables(associadoId: string, modeloId: string) {
+  const negado = await exigirPermissao("contratos_gerados.criar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const [result, modelo, empresa] = await Promise.all([
     getAssociadoById(supabase, associadoId),
@@ -202,6 +221,8 @@ export async function checkContratoMissingVariables(associadoId: string, modeloI
 }
 
 export async function gerarContrato(params: { associadoId: string; modeloId: string; dataContrato: string }) {
+  const negado = await exigirPermissao("contratos_gerados.criar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const [result, modelo, empresa] = await Promise.all([
     getAssociadoById(supabase, params.associadoId),

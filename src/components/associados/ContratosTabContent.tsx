@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FilePlus2, Eye, Send } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { Badge, StatusTone } from "@/components/ui/Badge";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
@@ -34,6 +35,7 @@ export function ContratosTabContent({
   onEditAssociado: () => void;
 }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [modalOpen, setModalOpen] = useState(false);
   const [modeloId, setModeloId] = useState("");
   const [dataContrato, setDataContrato] = useState(new Date().toISOString().slice(0, 10));
@@ -74,10 +76,12 @@ export function ContratosTabContent({
     <div>
       <div className="mb-3 flex items-center justify-between">
         <p className="text-sm font-medium text-gray-700">Contratos gerados</p>
-        <Button size="sm" onClick={openModal} disabled={modelos.length === 0}>
-          <FilePlus2 size={14} />
-          Gerar contrato
-        </Button>
+        {pode("contratos_gerados.criar") && (
+          <Button size="sm" onClick={openModal} disabled={modelos.length === 0}>
+            <FilePlus2 size={14} />
+            Gerar contrato
+          </Button>
+        )}
       </div>
 
       {modelos.length === 0 && (

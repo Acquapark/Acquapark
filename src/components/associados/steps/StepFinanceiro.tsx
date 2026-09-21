@@ -7,6 +7,7 @@ import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Tab
 import { StatusBadge, StatusMaps } from "@/components/ui/Badge";
 import { Mensalidade } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { RegistrarPagamentoModal } from "@/components/financeiro/RegistrarPagamentoModal";
 
 export function StepFinanceiro({
@@ -16,6 +17,7 @@ export function StepFinanceiro({
   mensalidades: Mensalidade[];
   associadoId?: string;
 }) {
+  const { pode } = useAcesso();
   const pagas = mensalidades.filter((m) => m.status === "Pago");
   const [registrando, setRegistrando] = useState<Mensalidade | null>(null);
 
@@ -47,7 +49,7 @@ export function StepFinanceiro({
                 <Td>{m.pagamentoEm ? formatDate(m.pagamentoEm) : "—"}</Td>
                 <Td>
                   <div className="flex gap-1.5">
-                    {m.status !== "Pago" && (
+                    {m.status !== "Pago" && pode("contas_receber.receber") && (
                       <Button
                         variant="secondary"
                         size="sm"

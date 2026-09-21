@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getCaixaAberto, getCaixaResumo, getCaixas } from "@/lib/supabase/caixa";
+import { getAcessoAtual } from "@/lib/auth/acesso-atual";
+import { temPermissao } from "@/lib/permissoes";
 import { CaixaClient } from "./CaixaClient";
 
 export default async function CaixaPage() {
@@ -11,7 +13,8 @@ export default async function CaixaPage() {
   const caixaAberto = userId ? await getCaixaAberto(supabase, userId) : null;
   const [resumoAberto, historico] = await Promise.all([
     caixaAberto ? getCaixaResumo(supabase, caixaAberto.id) : Promise.resolve(null),
-    getCaixas(supabase, 40),
+    // Sem "ver caixas de outros operadores", o histórico mostra só os do próprio usuário.
+    getCaixas(supabase, 40, temPermissao(await getAcessoAtual(), "caixa.ver_todos") ? undefined : (userId ?? undefined)),
   ]);
 
   return <CaixaClient resumoAberto={resumoAberto} historico={historico} />;

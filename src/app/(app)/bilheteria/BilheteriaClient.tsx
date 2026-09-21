@@ -13,6 +13,7 @@ import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Tab
 import { StatusBadge, StatusMaps } from "@/components/ui/Badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Ingresso, IngressoStatus, TipoIngresso } from "@/types";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { TiposIngressoManager } from "@/components/bilheteria/TiposIngressoManager";
 import { VendaModal } from "@/components/bilheteria/VendaModal";
 import { IngressoQrModal } from "@/components/bilheteria/IngressoQrModal";
@@ -32,6 +33,7 @@ export function BilheteriaClient({
 }) {
   const caixaAberto = caixa !== null;
   const router = useRouter();
+  const { pode } = useAcesso();
   const [tab, setTab] = useState<"ingressos" | "tipos">("ingressos");
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
@@ -87,10 +89,12 @@ export function BilheteriaClient({
         title="Bilheteria"
         subtitle="Venda de ingressos avulsos e gestão de tipos de ingresso"
         action={
-          <Button onClick={openVenda} disabled={!caixaAberto} title={caixaAberto ? undefined : "Abra o caixa para vender"}>
-            <Plus size={16} />
-            Nova Venda
-          </Button>
+          pode("ingressos.criar") ? (
+            <Button onClick={openVenda} disabled={!caixaAberto} title={caixaAberto ? undefined : "Abra o caixa para vender"}>
+              <Plus size={16} />
+              Nova Venda
+            </Button>
+          ) : undefined
         }
       />
 
@@ -116,7 +120,7 @@ export function BilheteriaClient({
           <Tabs
             tabs={[
               { key: "ingressos", label: "Ingressos" },
-              { key: "tipos", label: "Tipos de Ingresso" },
+              ...(pode("tipos_ingresso.visualizar") ? [{ key: "tipos", label: "Tipos de Ingresso" }] : []),
             ]}
             active={tab}
             onChange={(k) => setTab(k as "ingressos" | "tipos")}
@@ -214,13 +218,13 @@ export function BilheteriaClient({
                           <Button variant="secondary" size="sm" onClick={() => openQr(i)}>
                             QR Code
                           </Button>
-                          {i.status !== "Cancelado" && (
+                          {i.status !== "Cancelado" && pode("ingressos.imprimir") && (
                             <Button variant="secondary" size="sm" onClick={() => imprimirIngresso(i.id)}>
                               <Printer size={13} />
                               Imprimir
                             </Button>
                           )}
-                          {i.status === "Disponível" && (
+                          {i.status === "Disponível" && pode("ingressos.cancelar") && (
                             <Button
                               variant="ghost"
                               size="sm"

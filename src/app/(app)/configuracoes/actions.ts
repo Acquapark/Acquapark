@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 
 import { RegraPrimeiraParcela } from "@/types";
+import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 export interface PlanoFormInput {
   nome: string;
@@ -18,6 +19,8 @@ export interface PlanoFormInput {
 }
 
 export async function createPlano(input: PlanoFormInput) {
+  const negado = await exigirPermissao("planos.criar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("planos").insert({
     nome: input.nome,
@@ -36,6 +39,8 @@ export async function createPlano(input: PlanoFormInput) {
 }
 
 export async function updatePlano(id: string, input: PlanoFormInput) {
+  const negado = await exigirPermissao("planos.editar");
+  if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase
     .from("planos")

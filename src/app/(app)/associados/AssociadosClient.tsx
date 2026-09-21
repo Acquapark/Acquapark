@@ -13,11 +13,13 @@ import { formatCurrency, formatDate } from "@/lib/utils";
 import { AssociadoModal } from "@/components/associados/AssociadoModal";
 import { Associado, AssociadoStatus, Plano } from "@/types";
 import { deleteAssociado } from "./actions";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 
 const PAGE_SIZE = 5;
 
 export function AssociadosClient({ associados, planos }: { associados: Associado[]; planos: Plano[] }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AssociadoStatus | "Todos">("Todos");
   const [page, setPage] = useState(1);
@@ -51,10 +53,12 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
         title="Associados"
         subtitle={`${associados.length} associados cadastrados`}
         action={
-          <Button onClick={() => setModalOpen(true)}>
-            <Plus size={16} />
-            Novo Associado
-          </Button>
+          pode("associados.criar") ? (
+            <Button onClick={() => setModalOpen(true)}>
+              <Plus size={16} />
+              Novo Associado
+            </Button>
+          ) : undefined
         }
       />
 
@@ -132,7 +136,7 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
                 <Td>{a.vencimento ? formatDate(a.vencimento) : "—"}</Td>
                 <Td>{a.ultimoAcesso}</Td>
                 <Td>
-                  {confirmId === a.id ? (
+                  {!pode("associados.excluir") ? null : confirmId === a.id ? (
                     <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                       <span className="text-xs text-danger-600">Excluir?</span>
                       <button

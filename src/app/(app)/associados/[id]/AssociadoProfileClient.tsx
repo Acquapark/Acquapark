@@ -20,6 +20,7 @@ import { ContratosTabContent } from "@/components/associados/ContratosTabContent
 import { AcessoTabContent } from "@/components/associados/AcessoTabContent";
 import { Associado, AcessoAssociado, AssociadoStatus, Contrato, Plano } from "@/types";
 import { ContratoGerado, ModeloContrato } from "@/lib/supabase/contratos";
+import { useAcesso } from "@/components/providers/AcessoProvider";
 import { ensureCredencial, regenerarCredencial, updateAssociado, updateAssociadoStatus } from "@/app/(app)/associados/actions";
 
 const TAB_KEYS = ["dados", "plano", "dependentes", "contrato", "financeiro", "acessos", "credencial", "acesso"] as const;
@@ -32,6 +33,18 @@ const TAB_LABELS: Record<(typeof TAB_KEYS)[number], string> = {
   acessos: "Acessos",
   credencial: "Credencial",
   acesso: "Acesso",
+};
+
+/** Permissão que libera cada aba do perfil. */
+const TAB_PERMISSOES: Record<(typeof TAB_KEYS)[number], string> = {
+  dados: "associados.visualizar",
+  plano: "planos_associado.visualizar",
+  dependentes: "dependentes.visualizar",
+  contrato: "contratos_gerados.visualizar",
+  financeiro: "contas_receber.visualizar",
+  acessos: "associados.visualizar",
+  credencial: "credenciais.visualizar",
+  acesso: "acesso_portal.visualizar",
 };
 
 function buildForm(associado: Associado, planoId: string | null): AssociadoFormState {
@@ -94,6 +107,7 @@ export function AssociadoProfileClient({
   contratoAtivo: Contrato | null;
 }) {
   const router = useRouter();
+  const { pode } = useAcesso();
   const [activeTab, setActiveTab] = useState<(typeof TAB_KEYS)[number]>("dados");
   const [editMode, setEditMode] = useState(false);
   const [form, setForm] = useState<AssociadoFormState>(() => buildForm(associado, planoId));
@@ -215,20 +229,25 @@ export function AssociadoProfileClient({
             </div>
           ) : (
             <div className="flex gap-2">
-              <Button variant="secondary" size="sm" onClick={handleStartEdit}>
-                <Pencil size={14} />
-                Editar
-              </Button>
-              {statusActionsFor(associado.status).map((action) => (
-                <Button key={action.label} variant={action.variant} size="sm" onClick={() => setStatusPending(action)}>
-                  <action.icon size={14} />
-                  {action.label}
+              {pode("associados.editar") && (
+                <Button variant="secondary" size="sm" onClick={handleStartEdit}>
+                  <Pencil size={14} />
+                  Editar
                 </Button>
-              ))}
-              <Button size="sm" onClick={() => setActiveTab("credencial")}>
-                <IdCard size={14} />
-                Gerar credencial
-              </Button>
+              )}
+              {pode("associados.alterar_status") &&
+                statusActionsFor(associado.status).map((action) => (
+                  <Button key={action.label} variant={action.variant} size="sm" onClick={() => setStatusPending(action)}>
+                    <action.icon size={14} />
+                    {action.label}
+                  </Button>
+                ))}
+              {pode("credenciais.visualizar") && (
+                <Button size="sm" onClick={() => setActiveTab("credencial")}>
+                  <IdCard size={14} />
+                  Gerar credencial
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -237,7 +256,7 @@ export function AssociadoProfileClient({
       <Card>
         <div className="px-4">
           <Tabs
-            tabs={TAB_KEYS.map((key) => ({ key, label: TAB_LABELS[key] }))}
+            tabs={TAB_KEYS.filter((key) => pode(TAB_PERMISSOES[key])).map((key) => ({ key, label: TAB_LABELS[key] }))}
             active={activeTab}
             onChange={(key) => setActiveTab(key as (typeof TAB_KEYS)[number])}
           />
@@ -261,7 +280,13 @@ export function AssociadoProfileClient({
           {activeTab === "financeiro" && <StepFinanceiro mensalidades={associado.mensalidades} associadoId={associado.id} />}
           {activeTab === "acessos" && <StepAcessos acessos={associado.acessos} />}
           {activeTab === "credencial" && (
-            <StepCredencial form={form} numero={associado.numero} planos={planos} codigo={codigo} onRegenerate={handleRegenerateCredencial} />
+            <StepCredencial
+              form={form}
+              numero={associado.numero}
+              planos={planos}
+              codigo={codigo}
+              onRegenerate={pode("credenciais.editar") ? handleRegenerateCredencial : undefined}
+            />
           )}
           {activeTab === "acesso" && (
             <AcessoTabContent associadoId={associado.id} acesso={acesso} emailSugerido={associado.email} />
