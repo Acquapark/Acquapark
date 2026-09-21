@@ -34,9 +34,6 @@ export interface AssociadoFormState {
 
   // Etapa 4 — Contrato
   numeroContrato: string;
-  dataContratacao: string;
-  contratoInicio: string;
-  contratoFim: string;
   contratoObservacoes: string;
 }
 
@@ -67,9 +64,6 @@ export const emptyAssociadoForm: AssociadoFormState = {
   desconto: "",
   planoObservacoes: "",
   numeroContrato: "",
-  dataContratacao: "",
-  contratoInicio: "",
-  contratoFim: "",
   contratoObservacoes: "",
 };
 

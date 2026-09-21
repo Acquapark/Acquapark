@@ -26,21 +26,8 @@ export function StepContrato({
           <Input value={form.numeroContrato} onChange={(e) => update({ numeroContrato: e.target.value })} placeholder="Gerado automaticamente" disabled />
         </div>
         <div>
-          <Label>Data de contratação</Label>
-          <Input type="date" value={form.dataContratacao} onChange={(e) => update({ dataContratacao: e.target.value })} />
-        </div>
-        <div>
           <Label>Plano contratado</Label>
           <Input value={plano ? `${plano.nome} — ${formatCurrency(plano.valor)}` : "—"} disabled />
-        </div>
-
-        <div>
-          <Label>Data de início</Label>
-          <Input type="date" value={form.contratoInicio} onChange={(e) => update({ contratoInicio: e.target.value })} />
-        </div>
-        <div>
-          <Label>Data de término</Label>
-          <Input type="date" value={form.contratoFim} onChange={(e) => update({ contratoFim: e.target.value })} placeholder="Indeterminado" />
         </div>
       </div>
 
