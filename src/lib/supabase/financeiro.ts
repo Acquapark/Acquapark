@@ -1,6 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { Despesa } from "@/types";
 import { hojeBR, limitesDoMes } from "@/lib/datas-br";
+import { buscarTodos } from "@/lib/supabase/paginar";
 
 type Row = Record<string, unknown>;
 
@@ -60,49 +61,47 @@ export interface Recebimento {
   responsavel: string;
 }
 
-export async function getRecebimentos(supabase: SupabaseClient, mes: string): Promise<Recebimento[]> {
-  let query = supabase
-    .from("pagamentos")
-    .select(
-      "id, valor, forma_pagamento, referencia, pago_em, mensalidades ( numero_parcela, total_parcelas, associados ( nome ) ), ingressos ( numero, comprador_nome ), usuarios ( nome )",
-    )
-    .order("pago_em", { ascending: false })
-    .limit(2000);
+export const RECEBIMENTO_SELECT =
+  "id, valor, forma_pagamento, referencia, pago_em, mensalidades ( numero_parcela, total_parcelas, associados ( nome ) ), ingressos ( numero, comprador_nome ), usuarios ( nome )";
 
-  if (mes !== "todos") {
-    const { de, ate } = limitesDoMes(mes);
-    query = query.gte("pago_em", `${de}T00:00:00-03:00`).lt("pago_em", `${ate}T00:00:00-03:00`);
+export function mapRecebimento(row: Row): Recebimento {
+  const mensalidade = row.mensalidades as Row | null;
+  const ingresso = row.ingressos as Row | null;
+  const valor = Number(row.valor);
+
+  let tipo: Recebimento["tipo"] = "Outro";
+  let origem = (row.referencia as string) ?? "—";
+  if (mensalidade) {
+    tipo = "Mensalidade";
+    const parcela = mensalidade.numero_parcela ? ` ${mensalidade.numero_parcela}/${mensalidade.total_parcelas}` : "";
+    origem = `Mensalidade${parcela} — ${((mensalidade.associados as Row | null)?.nome as string) ?? "—"}`;
+  } else if (ingresso) {
+    tipo = valor < 0 ? "Estorno" : "Ingresso";
+    origem = `${valor < 0 ? "Estorno " : ""}${ingresso.numero as string}${ingresso.comprador_nome ? ` — ${ingresso.comprador_nome as string}` : ""}`;
   }
 
-  const { data, error } = await query;
-  if (error) throw error;
+  return {
+    id: row.id as string,
+    data: row.pago_em as string,
+    tipo,
+    origem,
+    valor,
+    forma: row.forma_pagamento as string,
+    responsavel: ((row.usuarios as Row | null)?.nome as string) ?? "Sistema",
+  };
+}
 
-  return (data as unknown as Row[]).map((row) => {
-    const mensalidade = row.mensalidades as Row | null;
-    const ingresso = row.ingressos as Row | null;
-    const valor = Number(row.valor);
-
-    let tipo: Recebimento["tipo"] = "Outro";
-    let origem = (row.referencia as string) ?? "—";
-    if (mensalidade) {
-      tipo = "Mensalidade";
-      const parcela = mensalidade.numero_parcela ? ` ${mensalidade.numero_parcela}/${mensalidade.total_parcelas}` : "";
-      origem = `Mensalidade${parcela} — ${((mensalidade.associados as Row | null)?.nome as string) ?? "—"}`;
-    } else if (ingresso) {
-      tipo = valor < 0 ? "Estorno" : "Ingresso";
-      origem = `${valor < 0 ? "Estorno " : ""}${ingresso.numero as string}${ingresso.comprador_nome ? ` — ${ingresso.comprador_nome as string}` : ""}`;
+export async function getRecebimentos(supabase: SupabaseClient, mes: string): Promise<Recebimento[]> {
+  const { linhas } = await buscarTodos<Row>((from, to) => {
+    let query = supabase.from("pagamentos").select(RECEBIMENTO_SELECT).order("pago_em", { ascending: false }).order("id");
+    if (mes !== "todos") {
+      const { de, ate } = limitesDoMes(mes);
+      query = query.gte("pago_em", `${de}T00:00:00-03:00`).lt("pago_em", `${ate}T00:00:00-03:00`);
     }
-
-    return {
-      id: row.id as string,
-      data: row.pago_em as string,
-      tipo,
-      origem,
-      valor,
-      forma: row.forma_pagamento as string,
-      responsavel: ((row.usuarios as Row | null)?.nome as string) ?? "Sistema",
-    };
+    return query.range(from, to);
   });
+
+  return linhas.map(mapRecebimento);
 }
 
 export async function getDespesas(supabase: SupabaseClient): Promise<Despesa[]> {

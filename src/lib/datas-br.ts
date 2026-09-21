@@ -50,3 +50,31 @@ export function ultimosMeses(hoje: string, quantidade = 12): string[] {
   }
   return lista;
 }
+
+/** Soma `dias` a uma data YYYY-MM-DD (calendário, sem fuso). */
+export function somarDias(iso: string, dias: number): string {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  return new Date(Date.UTC(ano, mes - 1, dia + dias)).toISOString().slice(0, 10);
+}
+
+/** Diferença em dias inteiros entre duas datas YYYY-MM-DD (b - a). */
+export function diasEntre(a: string, b: string): number {
+  const [ay, am, ad] = a.split("-").map(Number);
+  const [by, bm, bd] = b.split("-").map(Number);
+  return Math.round((Date.UTC(by, bm - 1, bd) - Date.UTC(ay, am - 1, ad)) / 86_400_000);
+}
+
+/** Hora cheia (0-23) de um timestamp no horário de Brasília. */
+export function horaBR(iso: string): number {
+  const texto = new Date(iso).toLocaleString("en-GB", { timeZone: TZ, hour: "2-digit", hour12: false });
+  return Number(texto.slice(0, 2)) % 24;
+}
+
+const DIAS_SEMANA = ["Domingo", "Segunda-feira", "Terça-feira", "Quarta-feira", "Quinta-feira", "Sexta-feira", "Sábado"];
+
+/** Índice (0=domingo) e nome do dia da semana de uma data YYYY-MM-DD. */
+export function diaDaSemana(iso: string): { indice: number; nome: string } {
+  const [ano, mes, dia] = iso.split("-").map(Number);
+  const indice = new Date(Date.UTC(ano, mes - 1, dia, 12)).getUTCDay();
+  return { indice, nome: DIAS_SEMANA[indice] };
+}
