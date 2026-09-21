@@ -140,7 +140,12 @@ export interface Despesa {
   categoria: string;
   valor: number;
   vencimento: string;
+  /** "Vencido" é calculado (Pendente com vencimento no passado), não é gravado. */
   status: "Pago" | "Pendente" | "Vencido";
+  fornecedor?: string;
+  pagoEm?: string;
+  formaPagamento?: string;
+  observacoes?: string;
 }
 
 export type CaixaStatus = "Aberto" | "Fechado";

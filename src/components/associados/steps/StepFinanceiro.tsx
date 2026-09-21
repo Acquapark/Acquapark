@@ -1,16 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { CreditCard, FileWarning, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { StatusBadge, StatusMaps } from "@/components/ui/Badge";
-import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
-import { Label, Select } from "@/components/ui/Field";
 import { Mensalidade } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { registrarPagamento } from "@/app/(app)/associados/actions";
+import { RegistrarPagamentoModal } from "@/components/financeiro/RegistrarPagamentoModal";
 
 export function StepFinanceiro({
   mensalidades,
@@ -19,20 +16,8 @@ export function StepFinanceiro({
   mensalidades: Mensalidade[];
   associadoId?: string;
 }) {
-  const router = useRouter();
   const pagas = mensalidades.filter((m) => m.status === "Pago");
   const [registrando, setRegistrando] = useState<Mensalidade | null>(null);
-  const [formaPagamento, setFormaPagamento] = useState("Pix");
-  const [saving, setSaving] = useState(false);
-
-  async function handleConfirmRegistrar() {
-    if (!registrando || !associadoId) return;
-    setSaving(true);
-    await registrarPagamento(registrando.id, associadoId, { formaPagamento, valor: registrando.valor });
-    setSaving(false);
-    setRegistrando(null);
-    router.refresh();
-  }
 
   return (
     <div className="space-y-6">
@@ -66,10 +51,7 @@ export function StepFinanceiro({
                       <Button
                         variant="secondary"
                         size="sm"
-                        onClick={() => {
-                          setFormaPagamento("Pix");
-                          setRegistrando(m);
-                        }}
+                        onClick={() => setRegistrando(m)}
                         disabled={!associadoId}
                       >
                         <CreditCard size={13} />
@@ -122,36 +104,14 @@ export function StepFinanceiro({
         </Table>
       </div>
 
-      <Modal open={!!registrando} onClose={() => setRegistrando(null)} size="md">
-        <ModalHeader title="Registrar pagamento" onClose={() => setRegistrando(null)} />
-        <ModalBody>
-          {registrando && (
-            <div className="space-y-4">
-              <p className="text-sm text-gray-700">
-                Mensalidade de {formatDate(registrando.vencimento)} — {formatCurrency(registrando.valor)}
-              </p>
-              <div>
-                <Label required>Forma de pagamento</Label>
-                <Select value={formaPagamento} onChange={(e) => setFormaPagamento(e.target.value)}>
-                  <option value="Pix">Pix</option>
-                  <option value="Cartão de crédito">Cartão de crédito</option>
-                  <option value="Débito automático">Débito automático</option>
-                  <option value="Boleto">Boleto</option>
-                  <option value="Dinheiro">Dinheiro</option>
-                </Select>
-              </div>
-            </div>
-          )}
-        </ModalBody>
-        <ModalFooter>
-          <Button variant="secondary" onClick={() => setRegistrando(null)} disabled={saving}>
-            Cancelar
-          </Button>
-          <Button onClick={handleConfirmRegistrar} disabled={saving}>
-            {saving ? "Registrando..." : "Confirmar pagamento"}
-          </Button>
-        </ModalFooter>
-      </Modal>
+      <RegistrarPagamentoModal
+        mensalidade={
+          registrando && associadoId
+            ? { id: registrando.id, associadoId, vencimento: registrando.vencimento, valor: registrando.valor }
+            : null
+        }
+        onClose={() => setRegistrando(null)}
+      />
     </div>
   );
 }

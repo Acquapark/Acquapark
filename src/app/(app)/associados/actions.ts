@@ -417,5 +417,6 @@ export async function registrarPagamento(
   if (mensalidadeError) return { error: mensalidadeError.message };
 
   revalidatePath(`/associados/${associadoId}`);
+  revalidatePath("/financeiro");
   return { success: true };
 }
