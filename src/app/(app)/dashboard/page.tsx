@@ -1,4 +1,4 @@
-import { Users, DoorOpen, UserCheck, Ticket, DollarSign, AlertTriangle } from "lucide-react";
+import { DoorOpen, UserCheck, Ticket, DollarSign, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KpiCard, Card, CardHeader } from "@/components/ui/Card";
 import { Badge, StatusBadge, StatusMaps } from "@/components/ui/Badge";
@@ -23,19 +23,13 @@ export default async function DashboardPage() {
     <div>
       <PageHeader title="Dashboard" subtitle="Visão geral da operação do parque hoje" />
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <KpiCard
-          label="Pessoas no parque"
-          value={d.pessoasNoParque.toLocaleString("pt-BR")}
-          icon={Users}
-          tone="primary"
-          hint="Entradas menos saídas hoje"
-        />
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         <KpiCard
           label="Entradas hoje"
           value={d.entradasHoje.toLocaleString("pt-BR")}
           icon={DoorOpen}
           tone="info"
+          hint="Ingressos utilizados hoje"
           trend={trend(d.entradasHojeVariacao, "vs ontem")}
         />
         <KpiCard label="Associados ativos" value={d.associadosAtivos.toLocaleString("pt-BR")} icon={UserCheck} tone="success" />

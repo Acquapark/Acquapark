@@ -1,6 +1,5 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { diaDaSemana, hojeBR, janelaDoDiaBR, mesAnterior, mesAtualBR, somarDias, ultimosMeses } from "@/lib/datas-br";
-import { contarEntradasAutorizadasNoDia, getAcessosHoje } from "./acessos";
 import { getAcessosRecentes, AcessoRecente, getIngressos } from "./bilheteria";
 import { getContasReceber, getDespesas, getRecebimentos, ContaReceber, Recebimento } from "./financeiro";
 import { Despesa, Ingresso } from "@/types";
@@ -9,7 +8,6 @@ const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MESES_CURTO = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul", "Ago", "Set", "Out", "Nov", "Dez"];
 
 export interface DashboardData {
-  pessoasNoParque: number;
   entradasHoje: number;
   entradasHojeVariacao: number | null;
   associadosAtivos: number;
@@ -32,26 +30,32 @@ function variacao(atual: number, anterior: number): number | null {
   return Math.round(((atual - anterior) / anterior) * 100);
 }
 
-/** Entradas autorizadas por dia, dos últimos 7 dias (hoje incluso), em ordem cronológica. */
+/** Ingressos utilizados num dia qualquer (data de utilização, não de venda) — base de "Entradas hoje". */
+async function contarIngressosUtilizadosNoDia(supabase: SupabaseClient, dia: string): Promise<number> {
+  const { count } = await supabase
+    .from("ingressos")
+    .select("id", { count: "exact", head: true })
+    .eq("data_utilizacao", dia)
+    .eq("status", "Utilizado");
+  return count ?? 0;
+}
+
+/** Ingressos utilizados por dia, dos últimos 7 dias (hoje incluso), em ordem cronológica — mesma base do card "Entradas hoje". */
 async function getEntradasSemana(supabase: SupabaseClient, hoje: string): Promise<{ dia: string; entradas: number }[]> {
   const primeiroDia = somarDias(hoje, -6);
-  const { inicio } = janelaDoDiaBR(primeiroDia);
-  const { fim } = janelaDoDiaBR(hoje);
 
   const { data, error } = await supabase
-    .from("acessos")
-    .select("registrado_em")
-    .eq("resultado", "Autorizado")
-    .in("tipo", ["Entrada", "Reentrada"])
-    .gte("registrado_em", inicio)
-    .lt("registrado_em", fim)
+    .from("ingressos")
+    .select("data_utilizacao")
+    .eq("status", "Utilizado")
+    .gte("data_utilizacao", primeiroDia)
+    .lte("data_utilizacao", hoje)
     .limit(5000);
   if (error) throw error;
 
   const porDia = new Map<string, number>();
-  for (const row of data as { registrado_em: string }[]) {
-    const dia = new Date(row.registrado_em).toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
-    porDia.set(dia, (porDia.get(dia) ?? 0) + 1);
+  for (const row of data as { data_utilizacao: string }[]) {
+    porDia.set(row.data_utilizacao, (porDia.get(row.data_utilizacao) ?? 0) + 1);
   }
 
   return Array.from({ length: 7 }, (_, i) => {
@@ -73,7 +77,7 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
   const outrosMeses = mesesGrafico.filter((m) => m !== mesAtual && m !== mesPassado);
 
   const [
-    acessosHoje,
+    entradasHojeCount,
     entradasOntem,
     associadosAtivosRes,
     ingressosVendidosHojeRes,
@@ -86,8 +90,8 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     entradasSemana,
     recebimentosOutrosMeses,
   ] = await Promise.all([
-    getAcessosHoje(supabase),
-    contarEntradasAutorizadasNoDia(supabase, ontem),
+    contarIngressosUtilizadosNoDia(supabase, hoje),
+    contarIngressosUtilizadosNoDia(supabase, ontem),
     supabase.from("associados").select("id", { count: "exact", head: true }).eq("status", "Ativo"),
     supabase.from("ingressos").select("id", { count: "exact", head: true }).gte("created_at", inicioHoje).lt("created_at", fimHoje),
     getAcessosRecentes(supabase, 20),
@@ -127,9 +131,8 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     .slice(0, 4);
 
   return {
-    pessoasNoParque: acessosHoje.pessoasNoParque,
-    entradasHoje: acessosHoje.entradas.total,
-    entradasHojeVariacao: variacao(acessosHoje.entradas.total, entradasOntem),
+    entradasHoje: entradasHojeCount,
+    entradasHojeVariacao: variacao(entradasHojeCount, entradasOntem),
     associadosAtivos: associadosAtivosRes.count ?? 0,
     ingressosVendidosHoje: ingressosVendidosHojeRes.count ?? 0,
     faturamentoMes,

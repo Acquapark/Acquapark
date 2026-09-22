@@ -14,7 +14,7 @@ export function DashboardCharts({
   return (
     <>
       <Card>
-        <CardHeader title="Entradas na semana" subtitle="Total de acessos por dia" />
+        <CardHeader title="Entradas na semana" subtitle="Ingressos utilizados por dia" />
         <div className="h-64 px-4 py-4">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={entradasSemana}>
