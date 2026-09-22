@@ -17,8 +17,13 @@ import { BoletoCharge, CardCheckout, Pagador, PaymentGateway, PixCharge } from "
 const BASE_URL_PRODUCAO = "https://api.asaas.com/v3";
 const BASE_URL_SANDBOX = "https://api-sandbox.asaas.com/v3";
 
+/** Sandbox e produção são contas completamente separadas no Asaas — nada criado numa existe na outra. */
+function ambiente(apiKey: string): "production" | "sandbox" {
+  return apiKey.startsWith("$aact_prod_") ? "production" : "sandbox";
+}
+
 function baseUrl(apiKey: string) {
-  return apiKey.startsWith("$aact_prod_") ? BASE_URL_PRODUCAO : BASE_URL_SANDBOX;
+  return ambiente(apiKey) === "production" ? BASE_URL_PRODUCAO : BASE_URL_SANDBOX;
 }
 
 function apenasDigitos(valor: string) {
@@ -36,9 +41,14 @@ interface AsaasErro {
 
 class AsaasApiError extends Error {}
 
-async function asaasFetch<T>(path: string, init?: RequestInit): Promise<T> {
+function getApiKey(): string {
   const apiKey = process.env.ASAAS_API_KEY;
   if (!apiKey) throw new AsaasApiError("Gateway de pagamento não configurado (ASAAS_API_KEY ausente).");
+  return apiKey;
+}
+
+async function asaasFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  const apiKey = getApiKey();
 
   const response = await fetch(`${baseUrl(apiKey)}${path}`, {
     ...init,
@@ -54,16 +64,25 @@ async function asaasFetch<T>(path: string, init?: RequestInit): Promise<T> {
   return body;
 }
 
-/** Reaproveita o cliente já criado no Asaas para este associado; cria e cacheia na primeira cobrança. */
-async function obterOuCriarCliente(pagador: Pagador): Promise<string> {
+/**
+ * Reaproveita o cliente já criado no Asaas para este associado; cria e cacheia
+ * na primeira cobrança. Só reaproveita se foi criado no MESMO ambiente da
+ * chave atual — um id de cliente do sandbox não existe do lado da produção
+ * (e vice-versa), então usar o cache do ambiente errado falha na hora de
+ * criar a cobrança ("Customer inválido").
+ */
+async function obterOuCriarCliente(pagador: Pagador, apiKey: string): Promise<string> {
   const admin = createAdminClient();
+  const env = ambiente(apiKey);
 
   const { data: existente } = await admin
     .from("associados")
-    .select("asaas_customer_id")
+    .select("asaas_customer_id, asaas_customer_env")
     .eq("id", pagador.associadoId)
     .maybeSingle();
-  if (existente?.asaas_customer_id) return existente.asaas_customer_id as string;
+  if (existente?.asaas_customer_id && existente.asaas_customer_env === env) {
+    return existente.asaas_customer_id as string;
+  }
 
   const cliente = await asaasFetch<{ id: string }>("/customers", {
     method: "POST",
@@ -76,7 +95,7 @@ async function obterOuCriarCliente(pagador: Pagador): Promise<string> {
     }),
   });
 
-  await admin.from("associados").update({ asaas_customer_id: cliente.id }).eq("id", pagador.associadoId);
+  await admin.from("associados").update({ asaas_customer_id: cliente.id, asaas_customer_env: env }).eq("id", pagador.associadoId);
   return cliente.id;
 }
 
@@ -97,7 +116,7 @@ async function criarCobranca(params: {
   descricao: string;
   pagador: Pagador;
 }): Promise<AsaasPayment> {
-  const customerId = await obterOuCriarCliente(params.pagador);
+  const customerId = await obterOuCriarCliente(params.pagador, getApiKey());
   return asaasFetch<AsaasPayment>("/payments", {
     method: "POST",
     body: JSON.stringify({
