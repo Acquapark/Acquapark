@@ -203,7 +203,7 @@ export const MODULOS: ModuloDef[] = [
     recursos: [
       { chave: "parque", rotulo: "Dados do Parque", acoes: [A.visualizar, A.editar] },
       { chave: "planos", rotulo: "Planos de associados", acoes: [A.visualizar, A.criar, A.editar] },
-      { chave: "tipos_ingresso", rotulo: "Tipos de ingresso", acoes: [A.visualizar, A.criar, A.editar] },
+      { chave: "tipos_ingresso", rotulo: "Tipos de ingresso", acoes: [A.visualizar, A.criar, A.editar, A.excluir] },
       { chave: "regras_acesso", rotulo: "Regras de acesso", acoes: [A.visualizar, A.editar] },
       { chave: "catracas", rotulo: "Catracas", acoes: [A.visualizar, A.criar, A.editar, A.excluir] },
       {

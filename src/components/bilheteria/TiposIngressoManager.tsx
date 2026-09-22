@@ -7,9 +7,10 @@ import { Button } from "@/components/ui/Button";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { formatCurrency } from "@/lib/utils";
 import { TipoIngresso } from "@/types";
-import { setTipoIngressoAtivo } from "@/app/(app)/bilheteria/actions";
+import { excluirTipoIngresso, setTipoIngressoAtivo } from "@/app/(app)/bilheteria/actions";
 import { REGRA_REENTRADA_LABEL, TipoIngressoModal } from "./TipoIngressoModal";
 
 export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; title?: string }) {
@@ -19,6 +20,8 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
   const [editing, setEditing] = useState<TipoIngresso | null>(null);
   const [modalKey, setModalKey] = useState(0);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [excluindo, setExcluindo] = useState<TipoIngresso | null>(null);
+  const [excluindoBusy, setExcluindoBusy] = useState(false);
   const [error, setError] = useState("");
 
   function openNew() {
@@ -42,6 +45,21 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
       setError(result.error);
       return;
     }
+    router.refresh();
+  }
+
+  async function handleConfirmarExclusao() {
+    if (!excluindo) return;
+    setExcluindoBusy(true);
+    setError("");
+    const result = await excluirTipoIngresso(excluindo.id);
+    setExcluindoBusy(false);
+    if (result.error) {
+      setError(result.error);
+      setExcluindo(null);
+      return;
+    }
+    setExcluindo(null);
     router.refresh();
   }
 
@@ -96,6 +114,11 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
                     <Button variant="ghost" size="sm" onClick={() => handleToggle(t)} disabled={togglingId === t.id}>
                       {t.ativo ? "Desativar" : "Ativar"}
                     </Button>
+                    {pode("tipos_ingresso.excluir") && (
+                      <Button variant="ghost" size="sm" onClick={() => setExcluindo(t)}>
+                        Excluir
+                      </Button>
+                    )}
                   </div>
                 )}
               </Td>
@@ -105,6 +128,24 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
       </Table>
 
       <TipoIngressoModal key={modalKey} open={modalOpen} onClose={() => setModalOpen(false)} tipo={editing} />
+
+      <Modal open={!!excluindo} onClose={() => setExcluindo(null)} size="md">
+        <ModalHeader title="Excluir tipo de ingresso" onClose={() => setExcluindo(null)} />
+        <ModalBody>
+          <p className="text-sm text-gray-600">
+            Excluir <strong>{excluindo?.nome}</strong>? Só é possível se nenhum ingresso já tiver sido vendido com este tipo —
+            se já vendeu algum, desative-o em vez de excluir.
+          </p>
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setExcluindo(null)}>
+            Cancelar
+          </Button>
+          <Button variant="destructive" onClick={handleConfirmarExclusao} disabled={excluindoBusy}>
+            {excluindoBusy ? "Excluindo..." : "Excluir"}
+          </Button>
+        </ModalFooter>
+      </Modal>
     </div>
   );
 }

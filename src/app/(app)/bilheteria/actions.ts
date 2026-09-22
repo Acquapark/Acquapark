@@ -78,6 +78,21 @@ export async function setTipoIngressoAtivo(id: string, ativo: boolean) {
   return { success: true };
 }
 
+export async function excluirTipoIngresso(id: string) {
+  const negado = await exigirPermissao("tipos_ingresso.excluir");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+  const { error } = await supabase.from("tipos_ingresso").delete().eq("id", id);
+  if (error) {
+    if (error.code === "23503") {
+      return { error: "Este tipo já tem ingressos vendidos vinculados e não pode ser excluído. Desative-o em vez de excluir." };
+    }
+    return { error: error.message };
+  }
+  revalidate();
+  return { success: true };
+}
+
 const FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de débito", "Cartão de crédito"];
 
 export async function venderIngresso(params: {
