@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { CreditCard, FileWarning, Receipt } from "lucide-react";
+import { CreditCard, QrCode, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { StatusBadge, StatusMaps } from "@/components/ui/Badge";
@@ -9,6 +9,7 @@ import { Mensalidade } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { RegistrarPagamentoModal } from "@/components/financeiro/RegistrarPagamentoModal";
+import { CobrarModal, MensalidadeParaCobranca } from "@/components/financeiro/CobrarModal";
 
 export function StepFinanceiro({
   mensalidades,
@@ -20,6 +21,7 @@ export function StepFinanceiro({
   const { pode } = useAcesso();
   const pagas = mensalidades.filter((m) => m.status === "Pago");
   const [registrando, setRegistrando] = useState<Mensalidade | null>(null);
+  const [cobrando, setCobrando] = useState<MensalidadeParaCobranca | null>(null);
 
   return (
     <div className="space-y-6">
@@ -60,9 +62,9 @@ export function StepFinanceiro({
                         Registrar
                       </Button>
                     )}
-                    {m.status === "Pendente" && (
-                      <Button variant="ghost" size="sm" disabled title="Requer integração com gateway de pagamento/cobrança">
-                        <FileWarning size={13} />
+                    {m.status === "Pendente" && pode("contas_receber.receber") && (
+                      <Button variant="ghost" size="sm" onClick={() => setCobrando({ id: m.id, vencimento: m.vencimento, valor: m.valor })}>
+                        <QrCode size={13} />
                         Cobrar
                       </Button>
                     )}
@@ -114,6 +116,7 @@ export function StepFinanceiro({
         }
         onClose={() => setRegistrando(null)}
       />
+      <CobrarModal mensalidade={cobrando} onClose={() => setCobrando(null)} />
     </div>
   );
 }

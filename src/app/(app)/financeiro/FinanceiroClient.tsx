@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CreditCard, Plus, Search, TrendingDown, TrendingUp, Undo2, Wallet } from "lucide-react";
+import { AlertTriangle, CreditCard, Plus, QrCode, Search, TrendingDown, TrendingUp, Undo2, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { useAcesso } from "@/components/providers/AcessoProvider";
@@ -17,6 +17,7 @@ import { dataBR, rotuloMes, ultimosMeses } from "@/lib/datas-br";
 import type { ContaReceber, Recebimento } from "@/lib/supabase/financeiro";
 import { Despesa } from "@/types";
 import { RegistrarPagamentoModal, MensalidadeParaBaixa } from "@/components/financeiro/RegistrarPagamentoModal";
+import { CobrarModal, MensalidadeParaCobranca } from "@/components/financeiro/CobrarModal";
 import { DespesaModal, PagarDespesaModal } from "@/components/financeiro/DespesaModals";
 import { desfazerPagamentoDespesa, excluirDespesa } from "./actions";
 
@@ -65,6 +66,7 @@ export function FinanceiroClient({
   const [filtroConta, setFiltroConta] = useState("Todas");
   const [buscaConta, setBuscaConta] = useState("");
   const [baixando, setBaixando] = useState<MensalidadeParaBaixa | null>(null);
+  const [cobrando, setCobrando] = useState<MensalidadeParaCobranca | null>(null);
 
   // Recebimentos
   const [filtroForma, setFiltroForma] = useState("Todas");
@@ -274,24 +276,43 @@ export function FinanceiroClient({
                     </Td>
                     <Td>
                       {pode("contas_receber.receber") && (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        disabled={c.status === "Em processamento"}
-                        title={c.status === "Em processamento" ? "Pagamento em processamento no gateway" : undefined}
-                        onClick={() =>
-                          setBaixando({
-                            id: c.id,
-                            associadoId: c.associadoId,
-                            vencimento: c.vencimento,
-                            valor: c.valor,
-                            descricao: `${c.associadoNome}${c.numeroParcela ? ` · parcela ${c.numeroParcela}/${c.totalParcelas}` : ""}`,
-                          })
-                        }
-                      >
-                        <CreditCard size={13} />
-                        Dar baixa
-                      </Button>
+                        <div className="flex gap-1.5">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            disabled={c.status === "Em processamento"}
+                            title={c.status === "Em processamento" ? "Pagamento em processamento no gateway" : undefined}
+                            onClick={() =>
+                              setBaixando({
+                                id: c.id,
+                                associadoId: c.associadoId,
+                                vencimento: c.vencimento,
+                                valor: c.valor,
+                                descricao: `${c.associadoNome}${c.numeroParcela ? ` · parcela ${c.numeroParcela}/${c.totalParcelas}` : ""}`,
+                              })
+                            }
+                          >
+                            <CreditCard size={13} />
+                            Dar baixa
+                          </Button>
+                          {c.status !== "Em processamento" && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                setCobrando({
+                                  id: c.id,
+                                  vencimento: c.vencimento,
+                                  valor: c.valor,
+                                  descricao: `${c.associadoNome}${c.numeroParcela ? ` · parcela ${c.numeroParcela}/${c.totalParcelas}` : ""}`,
+                                })
+                              }
+                            >
+                              <QrCode size={13} />
+                              Cobrar
+                            </Button>
+                          )}
+                        </div>
                       )}
                     </Td>
                   </Tr>
@@ -543,6 +564,7 @@ export function FinanceiroClient({
       </Card>
 
       <RegistrarPagamentoModal key={baixando?.id ?? "baixa"} mensalidade={baixando} onClose={() => setBaixando(null)} />
+      <CobrarModal key={cobrando?.id ?? "cobrar"} mensalidade={cobrando} onClose={() => setCobrando(null)} />
       <DespesaModal
         key={despesaModalKey}
         open={despesaModalOpen}

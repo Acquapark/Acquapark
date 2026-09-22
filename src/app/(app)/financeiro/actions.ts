@@ -4,6 +4,9 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { FORMAS_PAGAMENTO_DESPESA } from "@/lib/financeiro-constantes";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
+import { paymentGateway } from "@/lib/gateway";
+import { Pagador } from "@/lib/gateway/types";
+import { FormaPagamento } from "@/types";
 
 export interface DespesaInput {
   descricao: string;
@@ -96,6 +99,86 @@ export async function desfazerPagamentoDespesa(id: string) {
   if (!data || data.length === 0) return { error: "Esta despesa não está paga." };
   revalidate();
   return { success: true };
+}
+
+/**
+ * Gera uma cobrança real no Asaas em nome do associado — para quem não usa o
+ * Portal, ou perdeu um boleto/Pix e precisa de um novo. Mesmo gateway que o
+ * Portal usa (src/lib/gateway); a confirmação chega depois pelo mesmo
+ * webhook, sem a equipe precisar fazer mais nada.
+ */
+type ResultadoCobranca =
+  | { error: string }
+  | { tipo: "pix"; copiaECola: string; expiraEm: string; valor: number }
+  | { tipo: "boleto"; linhaDigitavel: string; urlBoleto: string; valor: number }
+  | { tipo: "cartao"; checkoutUrl: string; valor: number };
+
+export async function cobrarMensalidade(mensalidadeId: string, forma: FormaPagamento): Promise<ResultadoCobranca> {
+  const negado = await exigirPermissao("contas_receber.receber");
+  if (negado) return { error: negado.error };
+
+  const supabase = await createClient();
+  const { data: mensalidade, error: fetchError } = await supabase
+    .from("mensalidades")
+    .select(
+      "id, associado_id, valor, vencimento, status, numero_parcela, total_parcelas, associados ( nome, cpf, email, telefone )",
+    )
+    .eq("id", mensalidadeId)
+    .maybeSingle();
+  if (fetchError || !mensalidade) return { error: "Mensalidade não encontrada." };
+  if (mensalidade.status === "Pago") return { error: "Esta mensalidade já está paga." };
+
+  const associado = mensalidade.associados as unknown as {
+    nome: string;
+    cpf: string;
+    email: string | null;
+    telefone: string | null;
+  } | null;
+  if (!associado?.cpf) return { error: "Associado sem CPF cadastrado — atualize o cadastro antes de cobrar." };
+
+  const pagador: Pagador = {
+    associadoId: mensalidade.associado_id as string,
+    nome: associado.nome,
+    cpf: associado.cpf,
+    email: associado.email ?? undefined,
+    telefone: associado.telefone ?? undefined,
+  };
+  const descricao = `Aqua Park — parcela ${mensalidade.numero_parcela}/${mensalidade.total_parcelas}`;
+  const valor = Number(mensalidade.valor);
+  const vencimento = mensalidade.vencimento as string;
+
+  try {
+    let resultado:
+      | { tipo: "pix"; copiaECola: string; expiraEm: string }
+      | { tipo: "boleto"; linhaDigitavel: string; urlBoleto: string }
+      | { tipo: "cartao"; checkoutUrl: string };
+    let chargeId: string;
+
+    if (forma === "Pix") {
+      const charge = await paymentGateway.criarCobrancaPix({ mensalidadeId, valor, vencimento, descricao, pagador });
+      chargeId = charge.chargeId;
+      resultado = { tipo: "pix", copiaECola: charge.copiaECola, expiraEm: charge.expiraEm };
+    } else if (forma === "Boleto") {
+      const charge = await paymentGateway.criarCobrancaBoleto({ mensalidadeId, valor, vencimento, descricao, pagador });
+      chargeId = charge.chargeId;
+      resultado = { tipo: "boleto", linhaDigitavel: charge.linhaDigitavel, urlBoleto: charge.urlBoleto };
+    } else {
+      const charge = await paymentGateway.criarCheckoutCartao({ mensalidadeId, valor, vencimento, descricao, pagador });
+      chargeId = charge.chargeId;
+      resultado = { tipo: "cartao", checkoutUrl: charge.checkoutUrl };
+    }
+
+    await supabase
+      .from("mensalidades")
+      .update({ status: "Em processamento", gateway_charge_id: chargeId, forma_pagamento: forma })
+      .eq("id", mensalidadeId);
+
+    revalidatePath(`/associados/${mensalidade.associado_id}`);
+    revalidatePath("/financeiro");
+    return { ...resultado, valor };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Não foi possível gerar a cobrança. Tente novamente." };
+  }
 }
 
 export async function excluirDespesa(id: string) {
