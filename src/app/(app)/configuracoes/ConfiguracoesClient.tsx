@@ -11,7 +11,7 @@ import { TiposIngressoSection } from "./sections/TiposIngressoSection";
 import { RegrasAcessoSection } from "./sections/RegrasAcessoSection";
 import { CatracasSection } from "./sections/CatracasSection";
 import { Empresa } from "@/lib/contracts/variables";
-import { Plano, TipoIngresso } from "@/types";
+import { Catraca, Plano, TipoIngresso } from "@/types";
 import { GrupoAcesso, UsuarioEquipe } from "@/lib/supabase/usuarios-grupos";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { SECOES_CONFIGURACOES } from "@/lib/permissoes";
@@ -20,12 +20,14 @@ export function ConfiguracoesClient({
   empresa,
   planos,
   tiposIngresso,
+  catracas,
   usuarios,
   grupos,
 }: {
   empresa: Empresa;
   planos: Plano[];
   tiposIngresso: TipoIngresso[];
+  catracas: Catraca[];
   usuarios: UsuarioEquipe[];
   grupos: GrupoAcesso[];
 }) {
@@ -47,7 +49,7 @@ export function ConfiguracoesClient({
         {section === "planos" && <PlanosSection planos={planos} />}
         {section === "ingressos" && <TiposIngressoSection tipos={tiposIngresso} />}
         {section === "regras" && <RegrasAcessoSection />}
-        {section === "catracas" && <CatracasSection />}
+        {section === "catracas" && <CatracasSection catracas={catracas} />}
       </Card>
     </div>
   );

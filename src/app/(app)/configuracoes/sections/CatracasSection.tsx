@@ -2,12 +2,12 @@
 
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { Table, Thead, Tbody, Th, Tr, Td } from "@/components/ui/Table";
+import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
-import { catracas } from "@/lib/mock-data";
+import { Catraca } from "@/types";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 
-export function CatracasSection() {
+export function CatracasSection({ catracas }: { catracas: Catraca[] }) {
   const { pode } = useAcesso();
   return (
     <div>
@@ -32,6 +32,7 @@ export function CatracasSection() {
           </tr>
         </Thead>
         <Tbody>
+          {catracas.length === 0 && <TableEmpty colSpan={5} message="Nenhuma catraca cadastrada ainda." />}
           {catracas.map((c) => (
             <Tr key={c.id}>
               <Td className="font-medium text-gray-800">{c.nome}</Td>

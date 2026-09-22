@@ -1,6 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { diaDaSemana, hojeBR, janelaDoDiaBR, mesAnterior, mesAtualBR, somarDias, ultimosMeses } from "@/lib/datas-br";
-import { getAcessosHoje } from "./acessos";
+import { contarEntradasAutorizadasNoDia, getAcessosHoje } from "./acessos";
 import { getAcessosRecentes, AcessoRecente, getIngressos } from "./bilheteria";
 import { getContasReceber, getDespesas, getRecebimentos, ContaReceber, Recebimento } from "./financeiro";
 import { Despesa, Ingresso } from "@/types";
@@ -30,18 +30,6 @@ export interface DashboardData {
 function variacao(atual: number, anterior: number): number | null {
   if (anterior <= 0) return null;
   return Math.round(((atual - anterior) / anterior) * 100);
-}
-
-async function contarAcessosAutorizados(supabase: SupabaseClient, dia: string, tipos: string[]): Promise<number> {
-  const { inicio, fim } = janelaDoDiaBR(dia);
-  const { count } = await supabase
-    .from("acessos")
-    .select("id", { count: "exact", head: true })
-    .eq("resultado", "Autorizado")
-    .in("tipo", tipos)
-    .gte("registrado_em", inicio)
-    .lt("registrado_em", fim);
-  return count ?? 0;
 }
 
 /** Entradas autorizadas por dia, dos últimos 7 dias (hoje incluso), em ordem cronológica. */
@@ -87,7 +75,6 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
   const [
     acessosHoje,
     entradasOntem,
-    saidasHoje,
     associadosAtivosRes,
     ingressosVendidosHojeRes,
     entradasRecentesRaw,
@@ -100,8 +87,7 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     recebimentosOutrosMeses,
   ] = await Promise.all([
     getAcessosHoje(supabase),
-    contarAcessosAutorizados(supabase, ontem, ["Entrada", "Reentrada"]),
-    contarAcessosAutorizados(supabase, hoje, ["Saída"]),
+    contarEntradasAutorizadasNoDia(supabase, ontem),
     supabase.from("associados").select("id", { count: "exact", head: true }).eq("status", "Ativo"),
     supabase.from("ingressos").select("id", { count: "exact", head: true }).gte("created_at", inicioHoje).lt("created_at", fimHoje),
     getAcessosRecentes(supabase, 20),
@@ -141,7 +127,7 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     .slice(0, 4);
 
   return {
-    pessoasNoParque: Math.max(0, acessosHoje.entradas.total - saidasHoje),
+    pessoasNoParque: acessosHoje.pessoasNoParque,
     entradasHoje: acessosHoje.entradas.total,
     entradasHojeVariacao: variacao(acessosHoje.entradas.total, entradasOntem),
     associadosAtivos: associadosAtivosRes.count ?? 0,

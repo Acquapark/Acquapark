@@ -1,10 +1,9 @@
 import { DoorOpen, DoorClosed, Users, ShieldAlert, UserCheck } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KpiCard, Card, CardHeader } from "@/components/ui/Card";
-import { catracas } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/server";
 import { getAcessosRecentes } from "@/lib/supabase/bilheteria";
-import { getAcessosHoje } from "@/lib/supabase/acessos";
+import { getAcessosHoje, getCatracas } from "@/lib/supabase/acessos";
 import { getAcessoAtual } from "@/lib/auth/acesso-atual";
 import { temPermissao } from "@/lib/permissoes";
 import { CatracaCard } from "./CatracaCard";
@@ -13,12 +12,16 @@ import { AutoRefresh } from "./AutoRefresh";
 
 const qtd = (n: number, singular: string, plural: string) => `${n.toLocaleString("pt-BR")} ${n === 1 ? singular : plural}`;
 
+// Os KPIs são "de hoje" — não pode ser pré-renderizada no build.
+export const dynamic = "force-dynamic";
+
 export default async function ControleAcessoPage() {
   const supabase = await createClient();
   const podeValidar = temPermissao(await getAcessoAtual(), "controle_acesso.validar");
-  const [acessosRecentes, acessosHoje] = await Promise.all([
+  const [acessosRecentes, acessosHoje, catracas] = await Promise.all([
     getAcessosRecentes(supabase, 8),
     getAcessosHoje(supabase),
+    getCatracas(supabase),
   ]);
 
   return (
@@ -39,7 +42,13 @@ export default async function ControleAcessoPage() {
               : `${qtd(acessosHoje.acessosAssociados, "acesso", "acessos")}, contando reentradas`
           }
         />
-        <KpiCard label="Pessoas no parque" value="284" icon={Users} tone="primary" />
+        <KpiCard
+          label="Pessoas no parque"
+          value={acessosHoje.pessoasNoParque.toLocaleString("pt-BR")}
+          icon={Users}
+          tone="primary"
+          hint="Entradas menos saídas hoje"
+        />
         <KpiCard
           label="Entradas hoje"
           value={acessosHoje.entradas.total.toLocaleString("pt-BR")}
@@ -51,7 +60,7 @@ export default async function ControleAcessoPage() {
             ...(acessosHoje.entradas.reentradas > 0 ? [qtd(acessosHoje.entradas.reentradas, "reentrada", "reentradas")] : []),
           ].join(" · ")}
         />
-        <KpiCard label="Saídas hoje" value="128" icon={DoorClosed} tone="info" />
+        <KpiCard label="Saídas hoje" value={acessosHoje.saidas.toLocaleString("pt-BR")} icon={DoorClosed} tone="info" />
         <KpiCard
           label="Acessos negados hoje"
           value={acessosHoje.negados.total.toLocaleString("pt-BR")}
@@ -72,11 +81,15 @@ export default async function ControleAcessoPage() {
         <div className="xl:col-span-2">
           <Card>
             <CardHeader title="Catracas" subtitle="Status dos equipamentos em operação" />
-            <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
-              {catracas.map((c) => (
-                <CatracaCard key={c.id} catraca={c} />
-              ))}
-            </div>
+            {catracas.length === 0 ? (
+              <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma catraca cadastrada ainda.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2">
+                {catracas.map((c) => (
+                  <CatracaCard key={c.id} catraca={c} />
+                ))}
+              </div>
+            )}
           </Card>
 
           <Card className="mt-4">
