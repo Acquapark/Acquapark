@@ -2,67 +2,92 @@ import { Users, DoorOpen, UserCheck, Ticket, DollarSign, AlertTriangle } from "l
 import { PageHeader } from "@/components/ui/PageHeader";
 import { KpiCard, Card, CardHeader } from "@/components/ui/Card";
 import { Badge, StatusBadge, StatusMaps } from "@/components/ui/Badge";
-import { associados, despesas, entradasSemana, faturamentoMensal, ingressos } from "@/lib/mock-data";
+import { createClient } from "@/lib/supabase/server";
+import { getDashboardData } from "@/lib/supabase/dashboard";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { DashboardCharts } from "./charts";
 
-export default function DashboardPage() {
-  const mensalidadesEmAberto = associados
-    .flatMap((a) => a.mensalidades.map((m) => ({ ...m, associado: a.nome })))
-    .filter((m) => m.status === "Vencido" || m.status === "Pendente");
+// KPIs e listas dependem do dia/mês corrente — não pode ser pré-renderizada no build.
+export const dynamic = "force-dynamic";
 
-  const ultimosPagamentos = associados
-    .flatMap((a) => a.mensalidades.filter((m) => m.status === "Pago").map((m) => ({ ...m, associado: a.nome })))
-    .sort((a, b) => (b.pagamentoEm ?? "").localeCompare(a.pagamentoEm ?? ""))
-    .slice(0, 5);
+function trend(variacao: number | null, rotulo: string) {
+  if (variacao === null) return undefined;
+  return { value: `${Math.abs(variacao)}% ${rotulo}`, positive: variacao >= 0 };
+}
 
-  const entradasRecentes = associados
-    .flatMap((a) => a.acessos.filter((ac) => ac.tipo === "Entrada").map((ac) => ({ ...ac, associado: a.nome })))
-    .slice(0, 5);
+export default async function DashboardPage() {
+  const supabase = await createClient();
+  const d = await getDashboardData(supabase);
 
   return (
     <div>
       <PageHeader title="Dashboard" subtitle="Visão geral da operação do parque hoje" />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">
-        <KpiCard label="Pessoas no parque" value="284" icon={Users} tone="primary" />
-        <KpiCard label="Entradas hoje" value="412" icon={DoorOpen} tone="info" trend={{ value: "12% vs ontem", positive: true }} />
-        <KpiCard label="Associados ativos" value="1.248" icon={UserCheck} tone="success" />
-        <KpiCard label="Ingressos vendidos" value="97" icon={Ticket} tone="primary" />
-        <KpiCard label="Faturamento (mês)" value={formatCurrency(97600)} icon={DollarSign} tone="success" trend={{ value: "8% vs mês anterior", positive: false }} />
-        <KpiCard label="Mensalidades em aberto" value="34" icon={AlertTriangle} tone="warning" />
+        <KpiCard
+          label="Pessoas no parque"
+          value={d.pessoasNoParque.toLocaleString("pt-BR")}
+          icon={Users}
+          tone="primary"
+          hint="Entradas menos saídas hoje"
+        />
+        <KpiCard
+          label="Entradas hoje"
+          value={d.entradasHoje.toLocaleString("pt-BR")}
+          icon={DoorOpen}
+          tone="info"
+          trend={trend(d.entradasHojeVariacao, "vs ontem")}
+        />
+        <KpiCard label="Associados ativos" value={d.associadosAtivos.toLocaleString("pt-BR")} icon={UserCheck} tone="success" />
+        <KpiCard label="Ingressos vendidos hoje" value={d.ingressosVendidosHoje.toLocaleString("pt-BR")} icon={Ticket} tone="primary" />
+        <KpiCard
+          label="Faturamento (mês)"
+          value={formatCurrency(d.faturamentoMes)}
+          icon={DollarSign}
+          tone="success"
+          trend={trend(d.faturamentoMesVariacao, "vs mês anterior")}
+        />
+        <KpiCard label="Mensalidades em aberto" value={d.mensalidadesEmAberto.toLocaleString("pt-BR")} icon={AlertTriangle} tone="warning" />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
-        <DashboardCharts entradasSemana={entradasSemana} faturamentoMensal={faturamentoMensal} />
+        <DashboardCharts entradasSemana={d.entradasSemana} faturamentoMensal={d.faturamentoMensal} />
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
-          <CardHeader title="Entradas recentes" subtitle="Últimos acessos registrados" />
+          <CardHeader title="Entradas recentes" subtitle="Últimos acessos autorizados" />
           <div className="divide-y divide-gray-100">
-            {entradasRecentes.map((e) => (
+            {d.entradasRecentes.length === 0 && <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma entrada hoje ainda.</p>}
+            {d.entradasRecentes.map((e) => (
               <div key={e.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <div>
-                  <p className="font-medium text-gray-800">{e.associado}</p>
-                  <p className="text-xs text-gray-500">{e.catraca}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-800">{e.quem}</p>
+                  <p className="text-xs text-gray-500">
+                    {e.origem} · {e.tipo}
+                  </p>
                 </div>
-                <span className="text-xs text-gray-400">{e.horario}</span>
+                <span className="shrink-0 text-xs text-gray-400">
+                  {new Date(e.registradoEm).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo", hour: "2-digit", minute: "2-digit" })}
+                </span>
               </div>
             ))}
           </div>
         </Card>
 
         <Card>
-          <CardHeader title="Últimos pagamentos" subtitle="Mensalidades quitadas recentemente" />
+          <CardHeader title="Últimos pagamentos" subtitle="Recebimentos do mês" />
           <div className="divide-y divide-gray-100">
-            {ultimosPagamentos.map((p) => (
+            {d.ultimosPagamentos.length === 0 && <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhum recebimento este mês.</p>}
+            {d.ultimosPagamentos.map((p) => (
               <div key={p.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <div>
-                  <p className="font-medium text-gray-800">{p.associado}</p>
-                  <p className="text-xs text-gray-500">{p.formaPagamento}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-800">{p.origem}</p>
+                  <p className="text-xs text-gray-500">{p.forma}</p>
                 </div>
-                <span className="text-xs font-medium text-success-700">{formatCurrency(p.valor)}</span>
+                <span className={`shrink-0 text-xs font-medium ${p.valor < 0 ? "text-danger-600" : "text-success-700"}`}>
+                  {formatCurrency(p.valor)}
+                </span>
               </div>
             ))}
           </div>
@@ -71,10 +96,11 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Mensalidades em atraso" subtitle="Requer atenção" />
           <div className="divide-y divide-gray-100">
-            {mensalidadesEmAberto.map((m) => (
+            {d.mensalidadesAtrasadas.length === 0 && <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma mensalidade em atraso.</p>}
+            {d.mensalidadesAtrasadas.map((m) => (
               <div key={m.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <div>
-                  <p className="font-medium text-gray-800">{m.associado}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-800">{m.associadoNome}</p>
                   <p className="text-xs text-gray-500">Venc. {formatDate(m.vencimento)}</p>
                 </div>
                 <StatusBadge status={m.status} map={StatusMaps.mensalidade} />
@@ -88,13 +114,16 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Ingressos vendidos recentemente" />
           <div className="divide-y divide-gray-100">
-            {ingressos.slice(0, 4).map((i) => (
+            {d.ingressosRecentes.length === 0 && <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhum ingresso vendido ainda.</p>}
+            {d.ingressosRecentes.map((i) => (
               <div key={i.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <div>
-                  <p className="font-medium text-gray-800">{i.tipo}</p>
-                  <p className="text-xs text-gray-500">{i.comprador} · {i.numero}</p>
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-800">{i.tipo}</p>
+                  <p className="truncate text-xs text-gray-500">
+                    {i.comprador} · {i.numero}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <span className="text-xs text-gray-500">{formatCurrency(i.valor)}</span>
                   <StatusBadge status={i.status} map={StatusMaps.ingresso} />
                 </div>
@@ -106,15 +135,18 @@ export default function DashboardPage() {
         <Card>
           <CardHeader title="Despesas próximas" />
           <div className="divide-y divide-gray-100">
-            {despesas.slice(0, 4).map((d) => (
-              <div key={d.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <div>
-                  <p className="font-medium text-gray-800">{d.descricao}</p>
-                  <p className="text-xs text-gray-500">{d.categoria} · Venc. {formatDate(d.vencimento)}</p>
+            {d.despesasProximas.length === 0 && <p className="px-4 py-6 text-center text-sm text-gray-400">Nenhuma despesa pendente.</p>}
+            {d.despesasProximas.map((despesa) => (
+              <div key={despesa.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-800">{despesa.descricao}</p>
+                  <p className="text-xs text-gray-500">
+                    {despesa.categoria} · Venc. {formatDate(despesa.vencimento)}
+                  </p>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">{formatCurrency(d.valor)}</span>
-                  <Badge tone={d.status === "Pago" ? "success" : d.status === "Vencido" ? "danger" : "warning"}>{d.status}</Badge>
+                <div className="flex shrink-0 items-center gap-2">
+                  <span className="text-xs text-gray-500">{formatCurrency(despesa.valor)}</span>
+                  <Badge tone={despesa.status === "Pago" ? "success" : despesa.status === "Vencido" ? "danger" : "warning"}>{despesa.status}</Badge>
                 </div>
               </div>
             ))}

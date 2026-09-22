@@ -25,6 +25,17 @@ export function limitesDoMes(mes: string): { de: string; ate: string } {
   return { de: `${mes}-01`, ate: `${proximo}-01` };
 }
 
+/** "2026-09" -> "2026-08" (mês anterior). */
+export function mesAnterior(mes: string): string {
+  const [ano, m] = mes.split("-").map(Number);
+  return m === 1 ? `${ano - 1}-12` : `${ano}-${String(m - 1).padStart(2, "0")}`;
+}
+
+/** Início e fim (exclusivo) de um dia YYYY-MM-DD, em timestamptz de Brasília — para filtrar `gte`/`lt` em colunas timestamptz. */
+export function janelaDoDiaBR(dia: string): { inicio: string; fim: string } {
+  return { inicio: `${dia}T00:00:00-03:00`, fim: `${somarDias(dia, 1)}T00:00:00-03:00` };
+}
+
 /** "2026-09" -> "setembro de 2026". */
 export function rotuloMes(mes: string): string {
   if (mes === "todos") return "Todos os períodos";
