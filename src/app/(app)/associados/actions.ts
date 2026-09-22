@@ -257,6 +257,9 @@ export async function deleteAssociado(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.from("associados").delete().eq("id", id);
   if (error) {
+    if (error.code === "23503") {
+      return { error: "Este associado tem histórico vinculado e não pode ser excluído. Inative-o em vez de excluir." };
+    }
     return { error: error.message };
   }
   revalidatePath("/associados");

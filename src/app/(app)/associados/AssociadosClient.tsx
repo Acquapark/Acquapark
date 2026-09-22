@@ -26,12 +26,18 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
   const [modalOpen, setModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState("");
 
   async function handleConfirmDelete(id: string) {
     setDeletingId(id);
     setConfirmId(null);
-    await deleteAssociado(id);
+    setDeleteError("");
+    const result = await deleteAssociado(id);
     setDeletingId(null);
+    if (result.error) {
+      setDeleteError(result.error);
+      return;
+    }
     router.refresh();
   }
 
@@ -61,6 +67,10 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
           ) : undefined
         }
       />
+
+      {deleteError && (
+        <div className="mb-4 rounded-[4px] border border-danger-600/30 bg-danger-50 px-3 py-2 text-xs text-danger-700">{deleteError}</div>
+      )}
 
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 px-4 py-3">
