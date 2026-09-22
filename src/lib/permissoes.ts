@@ -119,6 +119,11 @@ export const MODULOS: ModuloDef[] = [
           { chave: "imprimir", rotulo: "Reimprimir" },
         ],
       },
+      {
+        chave: "cupons_desconto",
+        rotulo: "Cupons de desconto",
+        acoes: [A.visualizar, A.criar, A.editar, A.excluir],
+      },
     ],
   },
   {

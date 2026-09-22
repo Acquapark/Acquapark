@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Lock, Plus, Printer, Search, Ticket as TicketIcon } from "lucide-react";
@@ -12,9 +12,10 @@ import { Input, Select } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { StatusBadge, StatusMaps } from "@/components/ui/Badge";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { Ingresso, IngressoStatus, TipoIngresso } from "@/types";
+import { CupomDesconto, Ingresso, IngressoStatus, TipoIngresso } from "@/types";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { TiposIngressoManager } from "@/components/bilheteria/TiposIngressoManager";
+import { CupomManager } from "@/components/bilheteria/CupomManager";
 import { VendaModal } from "@/components/bilheteria/VendaModal";
 import { IngressoQrModal } from "@/components/bilheteria/IngressoQrModal";
 import { getAutoPrint, imprimirIngresso } from "@/lib/print-ingresso";
@@ -22,21 +23,42 @@ import { cancelarIngresso } from "./actions";
 
 const STATUS_OPTIONS: IngressoStatus[] = ["Disponível", "Utilizado", "Cancelado", "Expirado"];
 
+function hojeBR() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+
 export function BilheteriaClient({
   ingressos,
   tipos,
+  cupons,
+  periodo,
   caixa,
 }: {
   ingressos: Ingresso[];
   tipos: TipoIngresso[];
+  cupons: CupomDesconto[];
+  periodo: { de: string; ate: string };
   caixa: { numero: string; operadorNome: string } | null;
 }) {
   const caixaAberto = caixa !== null;
   const router = useRouter();
+  const [, startTransition] = useTransition();
   const { pode } = useAcesso();
-  const [tab, setTab] = useState<"ingressos" | "tipos">("ingressos");
+  const [tab, setTab] = useState<"ingressos" | "tipos" | "cupons">("ingressos");
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
+  const [de, setDe] = useState(periodo.de);
+  const [ate, setAte] = useState(periodo.ate);
+
+  function aplicarPeriodo(novoDe: string, novoAte: string) {
+    setDe(novoDe);
+    setAte(novoAte);
+    startTransition(() => router.push(`/bilheteria?de=${novoDe}&ate=${novoAte}`));
+  }
+
+  function irParaHoje() {
+    aplicarPeriodo(hojeBR(), hojeBR());
+  }
 
   const [vendaOpen, setVendaOpen] = useState(false);
   const [vendaKey, setVendaKey] = useState(0);
@@ -121,16 +143,28 @@ export function BilheteriaClient({
             tabs={[
               { key: "ingressos", label: "Ingressos" },
               ...(pode("tipos_ingresso.visualizar") ? [{ key: "tipos", label: "Tipos de Ingresso" }] : []),
+              ...(pode("cupons_desconto.visualizar") ? [{ key: "cupons", label: "Cupons de Desconto" }] : []),
             ]}
             active={tab}
-            onChange={(k) => setTab(k as "ingressos" | "tipos")}
+            onChange={(k) => setTab(k as "ingressos" | "tipos" | "cupons")}
           />
         </div>
 
         {tab === "ingressos" ? (
           <>
-            <div className="flex flex-wrap items-center gap-3 border-b border-gray-100 p-4">
-              <div className="relative w-full sm:w-72">
+            <div className="flex flex-wrap items-end gap-3 border-b border-gray-100 p-4">
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-gray-500">De</label>
+                <Input type="date" className="w-36" value={de} onChange={(e) => aplicarPeriodo(e.target.value, ate)} />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] font-medium text-gray-500">Até</label>
+                <Input type="date" className="w-36" value={ate} onChange={(e) => aplicarPeriodo(de, e.target.value)} />
+              </div>
+              <Button variant="secondary" size="sm" onClick={irParaHoje}>
+                Hoje
+              </Button>
+              <div className="relative w-full sm:w-64">
                 <Search size={14} className="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2 text-gray-400" />
                 <Input
                   className="pl-8"
@@ -149,7 +183,10 @@ export function BilheteriaClient({
                   ))}
                 </Select>
               </div>
-              <span className="ml-auto text-xs text-gray-400">{filtrados.length} ingresso(s)</span>
+              <span className="ml-auto text-xs text-gray-400">
+                {filtrados.length} ingresso(s) · venda de {formatDate(de)}
+                {ate !== de ? ` a ${formatDate(ate)}` : ""}
+              </span>
             </div>
 
             {error && (
@@ -166,6 +203,7 @@ export function BilheteriaClient({
                   <Th>Comprador</Th>
                   <Th>Data de utilização</Th>
                   <Th>Valor</Th>
+                  <Th>Cupom</Th>
                   <Th>Pagamento</Th>
                   <Th>Status</Th>
                   <Th>Ações</Th>
@@ -174,8 +212,8 @@ export function BilheteriaClient({
               <Tbody>
                 {filtrados.length === 0 && (
                   <TableEmpty
-                    colSpan={8}
-                    message={ingressos.length === 0 ? "Nenhum ingresso emitido ainda." : "Nenhum ingresso encontrado."}
+                    colSpan={9}
+                    message={ingressos.length === 0 ? "Nenhum ingresso emitido nesse período." : "Nenhum ingresso encontrado."}
                   />
                 )}
                 {filtrados.map((i) => (
@@ -190,6 +228,15 @@ export function BilheteriaClient({
                     <Td>{i.comprador}</Td>
                     <Td>{formatDate(i.dataUtilizacao)}</Td>
                     <Td>{formatCurrency(i.valor)}</Td>
+                    <Td>
+                      {i.cupomCodigo ? (
+                        <span title={i.valorDesconto ? `Desconto de ${formatCurrency(i.valorDesconto)}` : undefined}>
+                          {i.cupomCodigo}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </Td>
                     <Td>{i.formaPagamento ?? "—"}</Td>
                     <Td>
                       <StatusBadge status={i.status} map={StatusMaps.ingresso} />
@@ -243,9 +290,13 @@ export function BilheteriaClient({
               </Tbody>
             </Table>
           </>
-        ) : (
+        ) : tab === "tipos" ? (
           <div className="p-4">
             <TiposIngressoManager tipos={tipos} />
+          </div>
+        ) : (
+          <div className="p-4">
+            <CupomManager cupons={cupons} />
           </div>
         )}
       </Card>

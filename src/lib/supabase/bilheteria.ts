@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
-import { Ingresso, RegraReentrada, TipoIngresso } from "@/types";
+import { CupomDesconto, Ingresso, RegraReentrada, TipoIngresso } from "@/types";
+import { somarDias } from "@/lib/datas-br";
 
 type Row = Record<string, unknown>;
 
@@ -21,15 +22,11 @@ export async function getTiposIngresso(supabase: SupabaseClient): Promise<TipoIn
   return (data as unknown as Row[]).map(mapTipo);
 }
 
-export async function getIngressos(supabase: SupabaseClient): Promise<Ingresso[]> {
-  const { data, error } = await supabase
-    .from("ingressos")
-    .select("id, numero, codigo, comprador_nome, data_utilizacao, valor, status, forma_pagamento, tipos_ingresso ( nome )")
-    .order("created_at", { ascending: false })
-    .limit(300);
-  if (error) throw error;
+const INGRESSO_SELECT =
+  "id, numero, codigo, comprador_nome, data_utilizacao, valor, valor_desconto, status, forma_pagamento, tipos_ingresso ( nome ), cupons_desconto ( codigo )";
 
-  return (data as unknown as Row[]).map((row) => ({
+function mapIngresso(row: Row): Ingresso {
+  return {
     id: row.id as string,
     numero: row.numero as string,
     codigo: row.codigo as string,
@@ -39,7 +36,26 @@ export async function getIngressos(supabase: SupabaseClient): Promise<Ingresso[]
     valor: Number(row.valor),
     status: row.status as Ingresso["status"],
     formaPagamento: (row.forma_pagamento as string) ?? undefined,
-  }));
+    cupomCodigo: (row.cupons_desconto as Row | null)?.codigo as string | undefined,
+    valorDesconto: row.valor_desconto ? Number(row.valor_desconto) : undefined,
+  };
+}
+
+/** Sem `periodo`, traz os últimos vendidos (limite de segurança); com `periodo`, todas as vendas da janela (data da venda, `created_at`). */
+export async function getIngressos(supabase: SupabaseClient, periodo?: { de: string; ate: string }): Promise<Ingresso[]> {
+  let query = supabase.from("ingressos").select(INGRESSO_SELECT).order("created_at", { ascending: false });
+
+  if (periodo) {
+    const inicio = `${periodo.de}T00:00:00-03:00`;
+    const fim = `${somarDias(periodo.ate, 1)}T00:00:00-03:00`;
+    query = query.gte("created_at", inicio).lt("created_at", fim).limit(2000);
+  } else {
+    query = query.limit(300);
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data as unknown as Row[]).map(mapIngresso);
 }
 
 export interface AcessoRecente {
@@ -77,4 +93,24 @@ export async function getAcessosRecentes(supabase: SupabaseClient, limit = 8): P
       registradoEm: row.registrado_em as string,
     };
   });
+}
+
+function mapCupom(row: Row): CupomDesconto {
+  return {
+    id: row.id as string,
+    codigo: row.codigo as string,
+    descricao: (row.descricao as string) ?? "",
+    tipoDesconto: row.tipo_desconto as CupomDesconto["tipoDesconto"],
+    valor: Number(row.valor),
+    ativo: row.ativo as boolean,
+    validade: (row.validade as string) ?? null,
+    limiteUsos: (row.limite_usos as number) ?? null,
+    usos: row.usos as number,
+  };
+}
+
+export async function getCupons(supabase: SupabaseClient): Promise<CupomDesconto[]> {
+  const { data, error } = await supabase.from("cupons_desconto").select("*").order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data as unknown as Row[]).map(mapCupom);
 }

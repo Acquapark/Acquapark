@@ -114,11 +114,28 @@ export interface Ingresso {
   numero: string;
   tipo: string;
   dataUtilizacao: string;
+  /** Valor final cobrado — já com o desconto do cupom aplicado, se houver. */
   valor: number;
   status: IngressoStatus;
   comprador: string;
   codigo?: string;
   formaPagamento?: string;
+  cupomCodigo?: string;
+  valorDesconto?: number;
+}
+
+export type TipoDescontoCupom = "percentual" | "valor_fixo";
+
+export interface CupomDesconto {
+  id: string;
+  codigo: string;
+  descricao: string;
+  tipoDesconto: TipoDescontoCupom;
+  valor: number;
+  ativo: boolean;
+  validade: string | null;
+  limiteUsos: number | null;
+  usos: number;
 }
 
 export interface Catraca {
