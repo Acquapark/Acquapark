@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
-import { calcularPrimeiroVencimento, gerarParcelas } from "@/lib/mensalidades-engine";
+import { calcularPrimeiroVencimento, gerarParcelas, valorComDesconto } from "@/lib/mensalidades-engine";
 import { RegraPrimeiraParcela } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
@@ -90,7 +90,14 @@ async function validarPrimeiraParcela(
  */
 async function criarContratoEMensalidades(
   supabase: SupabaseClient,
-  params: { associadoId: string; planoId: string; dataInicio: string; valorOverride?: number; primeiraParcelaManual?: string },
+  params: {
+    associadoId: string;
+    planoId: string;
+    dataInicio: string;
+    valorOverride?: number;
+    descontoPercentual?: number;
+    primeiraParcelaManual?: string;
+  },
 ) {
   const { data: planoRow, error: planoError } = await supabase
     .from("planos")
@@ -99,7 +106,8 @@ async function criarContratoEMensalidades(
     .single();
   if (planoError || !planoRow) return { error: "Plano não encontrado." };
 
-  const valor = params.valorOverride ?? Number(planoRow.valor);
+  const valorAntesDoDesconto = params.valorOverride ?? Number(planoRow.valor);
+  const valor = valorComDesconto(valorAntesDoDesconto, params.descontoPercentual ?? 0);
   const quantidadeMensalidades = planoRow.quantidade_mensalidades as number;
   const diaVencimento = planoRow.dia_vencimento as number;
   const vencimentoNaContratacao = Boolean(planoRow.vencimento_na_contratacao);
@@ -225,11 +233,13 @@ export async function createAssociado(form: AssociadoFormState) {
 
   if (form.planoId && form.dataInicio) {
     const valorOverride = form.valorMensalidade ? Number(form.valorMensalidade.replace(",", ".")) : undefined;
+    const descontoPercentual = Number(form.desconto.replace(",", ".")) || 0;
     const contratoResult = await criarContratoEMensalidades(supabase, {
       associadoId: associado.id,
       planoId: form.planoId,
       dataInicio: form.dataInicio,
       valorOverride,
+      descontoPercentual,
       primeiraParcelaManual: form.primeiraParcelaData || undefined,
     });
     if (contratoResult.error) {

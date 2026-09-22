@@ -5,7 +5,7 @@ import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { AssociadoFormState } from "../form-types";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { Plano } from "@/types";
-import { parcelasDoPlano } from "@/lib/mensalidades-engine";
+import { parcelasDoPlano, valorComDesconto } from "@/lib/mensalidades-engine";
 
 export function StepPlano({
   form,
@@ -27,7 +27,9 @@ export function StepPlano({
     });
   }
 
-  const valor = form.valorMensalidade ? Number(form.valorMensalidade.replace(",", ".")) : plano?.valor ?? 0;
+  const valorBase = form.valorMensalidade ? Number(form.valorMensalidade.replace(",", ".")) : (plano?.valor ?? 0);
+  const descontoPercentual = Number(form.desconto.replace(",", ".")) || 0;
+  const valor = valorComDesconto(valorBase, descontoPercentual);
   const previewParcelas = plano ? parcelasDoPlano(plano, form.dataInicio, valor, form.primeiraParcelaData) : [];
   const podeGerarPreview = previewParcelas.length > 0;
   const aniversario = plano?.vencimentoNaContratacao === true;
@@ -128,6 +130,11 @@ export function StepPlano({
         <div>
           <Label>Desconto (%)</Label>
           <Input value={form.desconto} onChange={(e) => update({ desconto: e.target.value })} placeholder="0" />
+          {descontoPercentual > 0 && (
+            <p className="mt-1 text-[11px] text-gray-400">
+              {formatCurrency(valorBase)} − {descontoPercentual}% = <span className="font-medium text-gray-600">{formatCurrency(valor)}</span>
+            </p>
+          )}
         </div>
       </div>
 

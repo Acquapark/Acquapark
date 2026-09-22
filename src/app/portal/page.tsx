@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Receipt } from "lucide-react";
+import { ArrowRight, IdCard, Receipt } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getPortalContext } from "@/lib/supabase/portal";
 import { getAssociadoById } from "@/lib/supabase/associados";
@@ -79,6 +79,17 @@ export default async function PortalInicioPage() {
           className="flex items-center justify-between rounded-[10px] border border-gray-200 bg-white px-4 py-3.5 text-sm font-medium text-gray-700 shadow-sm"
         >
           Ver meu contrato
+          <ArrowRight size={16} className="text-gray-400" />
+        </Link>
+
+        <Link
+          href="/portal/credencial"
+          className="flex items-center justify-between rounded-[10px] border border-gray-200 bg-white px-4 py-3.5 text-sm font-medium text-gray-700 shadow-sm"
+        >
+          <span className="flex items-center gap-2">
+            <IdCard size={16} className="text-gray-400" />
+            Minha credencial
+          </span>
           <ArrowRight size={16} className="text-gray-400" />
         </Link>
       </div>

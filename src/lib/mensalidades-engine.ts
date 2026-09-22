@@ -103,6 +103,16 @@ export function gerarParcelas(params: {
   }));
 }
 
+/**
+ * Aplica um desconto percentual (0-100) sobre um valor base, arredondando para
+ * centavos. Percentuais fora da faixa são recortados (negativo vira 0, acima
+ * de 100 vira 100) em vez de gerar um valor negativo ou maior que o original.
+ */
+export function valorComDesconto(valorBase: number, descontoPercentual: number): number {
+  const percentual = Math.min(100, Math.max(0, descontoPercentual || 0));
+  return Math.round(valorBase * (1 - percentual / 100) * 100) / 100;
+}
+
 /** Regras do plano que definem as datas das parcelas (o que a contratação precisa conhecer). */
 export interface RegrasDoPlano {
   diaVencimento: number;

@@ -2,7 +2,7 @@
 
 import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
-import { Home, Receipt, FileText, LogOut, Waves } from "lucide-react";
+import { Home, Receipt, FileText, IdCard, LogOut, Waves } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/portal", label: "Início", icon: Home },
   { href: "/portal/mensalidades", label: "Mensalidades", icon: Receipt },
   { href: "/portal/contrato", label: "Contrato", icon: FileText },
+  { href: "/portal/credencial", label: "Credencial", icon: IdCard },
 ];
 
 export function PortalShell({ associadoNome, children }: { associadoNome: string; children: React.ReactNode }) {
@@ -48,7 +49,7 @@ export function PortalShell({ associadoNome, children }: { associadoNome: string
       <main className="flex-1 px-4 pb-24 pt-4">{children}</main>
 
       <nav className="fixed inset-x-0 bottom-0 z-10 border-t border-gray-200 bg-white pb-[env(safe-area-inset-bottom)]">
-        <div className="grid grid-cols-3">
+        <div className="grid grid-cols-4">
           {NAV_ITEMS.map((item) => {
             const active = pathname === item.href;
             const Icon = item.icon;
