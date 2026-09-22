@@ -5,6 +5,7 @@ import { getAssociadoById } from "@/lib/supabase/associados";
 import { getContratoAtivo, getMensalidadesDoContrato } from "@/lib/supabase/contrato-associado";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { MensalidadesList } from "@/components/portal/MensalidadesList";
+import { gatewayReal } from "@/lib/gateway";
 
 export default async function PortalMensalidadesPage() {
   const supabase = await createClient();
@@ -20,7 +21,7 @@ export default async function PortalMensalidadesPage() {
   return (
     <PortalShell associadoNome={result.associado.nome}>
       <h1 className="mb-4 text-lg font-semibold text-gray-900">Mensalidades</h1>
-      <MensalidadesList mensalidades={mensalidades} />
+      <MensalidadesList mensalidades={mensalidades} gatewayReal={gatewayReal} />
     </PortalShell>
   );
 }

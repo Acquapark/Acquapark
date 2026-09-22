@@ -24,7 +24,7 @@ const FORMAS: { key: FormaPagamento; label: string; icon: typeof QrCode }[] = [
 
 type ChargeResult = Awaited<ReturnType<typeof iniciarPagamento>>;
 
-export function MensalidadesList({ mensalidades }: { mensalidades: Mensalidade[] }) {
+export function MensalidadesList({ mensalidades, gatewayReal }: { mensalidades: Mensalidade[]; gatewayReal: boolean }) {
   const router = useRouter();
   const [formaSelecionada, setFormaSelecionada] = useState<Record<string, FormaPagamento>>({});
   const [loadingId, setLoadingId] = useState<string | null>(null);
@@ -140,6 +140,7 @@ export function MensalidadesList({ mensalidades }: { mensalidades: Mensalidade[]
       {charge && !("error" in charge) && (
         <PaymentSheet
           charge={charge}
+          gatewayReal={gatewayReal}
           confirmando={confirmando}
           confirmado={confirmado}
           confirmError={confirmError}
@@ -153,6 +154,7 @@ export function MensalidadesList({ mensalidades }: { mensalidades: Mensalidade[]
 
 function PaymentSheet({
   charge,
+  gatewayReal,
   confirmando,
   confirmado,
   confirmError,
@@ -160,6 +162,7 @@ function PaymentSheet({
   onClose,
 }: {
   charge: Exclude<ChargeResult, { error: string }>;
+  gatewayReal: boolean;
   confirmando: boolean;
   confirmado: boolean;
   confirmError: string;
@@ -262,22 +265,31 @@ function PaymentSheet({
               )}
 
               <div className="mt-5 border-t border-gray-100 pt-4">
-                <p className="mb-2 text-center text-[11px] text-gray-400">
-                  Sem gateway real conectado ainda — use o botão abaixo para simular a confirmação que normalmente chegaria
-                  via webhook.
-                </p>
-                {confirmError && (
-                  <div className="mb-2 rounded-[6px] border border-danger-600/30 bg-danger-50 px-3 py-2 text-xs text-danger-700">
-                    {confirmError}
-                  </div>
+                {gatewayReal ? (
+                  <p className="text-center text-xs text-gray-400">
+                    Assim que o pagamento for confirmado, esta mensalidade muda para "Pago" automaticamente — pode levar
+                    alguns instantes. Você pode fechar esta janela.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mb-2 text-center text-[11px] text-gray-400">
+                      Sem gateway real conectado ainda — use o botão abaixo para simular a confirmação que normalmente
+                      chegaria via webhook.
+                    </p>
+                    {confirmError && (
+                      <div className="mb-2 rounded-[6px] border border-danger-600/30 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+                        {confirmError}
+                      </div>
+                    )}
+                    <button
+                      onClick={onConfirmar}
+                      disabled={confirmando}
+                      className="h-12 w-full rounded-[8px] bg-gray-900 text-sm font-semibold text-white disabled:bg-gray-300"
+                    >
+                      {confirmando ? "Confirmando..." : "Simular confirmação do gateway"}
+                    </button>
+                  </>
                 )}
-                <button
-                  onClick={onConfirmar}
-                  disabled={confirmando}
-                  className="h-12 w-full rounded-[8px] bg-gray-900 text-sm font-semibold text-white disabled:bg-gray-300"
-                >
-                  {confirmando ? "Confirmando..." : "Simular confirmação do gateway"}
-                </button>
               </div>
             </>
           )}

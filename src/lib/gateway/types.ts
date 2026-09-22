@@ -1,11 +1,19 @@
 /**
  * Abstração do gateway de pagamento (seção 8-10, 22 do PRD do Portal).
- * Nenhuma integração real está implementada — `MockGateway` simula as
- * respostas para permitir testar o fluxo ponta a ponta (cobrança → webhook
- * → mensalidade paga). Trocar por um gateway real (Asaas etc.) significa
- * escrever uma nova classe que implementa esta mesma interface — nada mais
- * no resto do sistema precisa mudar.
+ * `MockGateway` simula as respostas para testar o fluxo ponta a ponta
+ * (cobrança → webhook → mensalidade paga) sem credenciais reais; `AsaasGateway`
+ * é a integração real com o Asaas. `src/lib/gateway/index.ts` escolhe qual das
+ * duas usar — o resto do sistema chama sempre esta mesma interface.
  */
+
+/** Quem está pagando — todo gateway real precisa disso para criar o cliente/cobrança. */
+export interface Pagador {
+  associadoId: string;
+  nome: string;
+  cpf: string;
+  email?: string;
+  telefone?: string;
+}
 
 export interface PixCharge {
   chargeId: string;
@@ -30,12 +38,25 @@ export interface CardCheckout {
 }
 
 export interface PaymentGateway {
-  criarCobrancaPix(params: { mensalidadeId: string; valor: number; descricao: string }): Promise<PixCharge>;
+  criarCobrancaPix(params: {
+    mensalidadeId: string;
+    valor: number;
+    vencimento: string;
+    descricao: string;
+    pagador: Pagador;
+  }): Promise<PixCharge>;
   criarCobrancaBoleto(params: {
     mensalidadeId: string;
     valor: number;
     vencimento: string;
     descricao: string;
+    pagador: Pagador;
   }): Promise<BoletoCharge>;
-  criarCheckoutCartao(params: { mensalidadeId: string; valor: number; descricao: string }): Promise<CardCheckout>;
+  criarCheckoutCartao(params: {
+    mensalidadeId: string;
+    valor: number;
+    vencimento: string;
+    descricao: string;
+    pagador: Pagador;
+  }): Promise<CardCheckout>;
 }

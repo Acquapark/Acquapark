@@ -3,7 +3,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPortalContext } from "@/lib/supabase/portal";
-import { paymentGateway } from "@/lib/gateway/mock";
+import { gatewayReal, paymentGateway } from "@/lib/gateway";
+import { Pagador } from "@/lib/gateway/types";
 import { processarConfirmacaoPagamento } from "@/lib/pagamento-webhook";
 import { FormaPagamento } from "@/types";
 
@@ -19,7 +20,9 @@ export async function iniciarPagamento(mensalidadeId: string, forma: FormaPagame
 
   const { data: mensalidade, error: fetchError } = await supabase
     .from("mensalidades")
-    .select("id, associado_id, valor, vencimento, status, numero_parcela, total_parcelas")
+    .select(
+      "id, associado_id, valor, vencimento, status, numero_parcela, total_parcelas, associados ( nome, cpf, email, telefone )",
+    )
     .eq("id", mensalidadeId)
     .eq("associado_id", ctx.associadoId)
     .maybeSingle();
@@ -27,35 +30,50 @@ export async function iniciarPagamento(mensalidadeId: string, forma: FormaPagame
   if (fetchError || !mensalidade) return { error: "Mensalidade não encontrada." };
   if (mensalidade.status === "Pago") return { error: "Esta mensalidade já está paga." };
 
+  const associado = mensalidade.associados as unknown as {
+    nome: string;
+    cpf: string;
+    email: string | null;
+    telefone: string | null;
+  } | null;
+  if (!associado?.cpf) return { error: "Cadastro sem CPF — atualize seus dados antes de pagar." };
+
+  const pagador: Pagador = {
+    associadoId: ctx.associadoId,
+    nome: associado.nome,
+    cpf: associado.cpf,
+    email: associado.email ?? undefined,
+    telefone: associado.telefone ?? undefined,
+  };
   const descricao = `Aqua Park — parcela ${mensalidade.numero_parcela}/${mensalidade.total_parcelas}`;
   const valor = Number(mensalidade.valor);
+  const vencimento = mensalidade.vencimento as string;
 
-  if (forma === "Pix") {
-    const charge = await paymentGateway.criarCobrancaPix({ mensalidadeId, valor, descricao });
+  try {
+    if (forma === "Pix") {
+      const charge = await paymentGateway.criarCobrancaPix({ mensalidadeId, valor, vencimento, descricao, pagador });
+      await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
+      return { tipo: "pix" as const, chargeId: charge.chargeId, copiaECola: charge.copiaECola, valor: charge.valor, expiraEm: charge.expiraEm };
+    }
+
+    if (forma === "Boleto") {
+      const charge = await paymentGateway.criarCobrancaBoleto({ mensalidadeId, valor, vencimento, descricao, pagador });
+      await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
+      return {
+        tipo: "boleto" as const,
+        chargeId: charge.chargeId,
+        linhaDigitavel: charge.linhaDigitavel,
+        urlBoleto: charge.urlBoleto,
+        valor: charge.valor,
+      };
+    }
+
+    const charge = await paymentGateway.criarCheckoutCartao({ mensalidadeId, valor, vencimento, descricao, pagador });
     await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
-    return { tipo: "pix" as const, chargeId: charge.chargeId, copiaECola: charge.copiaECola, valor: charge.valor, expiraEm: charge.expiraEm };
+    return { tipo: "cartao" as const, chargeId: charge.chargeId, checkoutUrl: charge.checkoutUrl, valor: charge.valor };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "Não foi possível gerar a cobrança. Tente novamente." };
   }
-
-  if (forma === "Boleto") {
-    const charge = await paymentGateway.criarCobrancaBoleto({
-      mensalidadeId,
-      valor,
-      vencimento: mensalidade.vencimento,
-      descricao,
-    });
-    await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
-    return {
-      tipo: "boleto" as const,
-      chargeId: charge.chargeId,
-      linhaDigitavel: charge.linhaDigitavel,
-      urlBoleto: charge.urlBoleto,
-      valor: charge.valor,
-    };
-  }
-
-  const charge = await paymentGateway.criarCheckoutCartao({ mensalidadeId, valor, descricao });
-  await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
-  return { tipo: "cartao" as const, chargeId: charge.chargeId, checkoutUrl: charge.checkoutUrl, valor: charge.valor };
 }
 
 /**
@@ -75,11 +93,14 @@ async function marcarEmProcessamento(mensalidadeId: string, associadoId: string,
 }
 
 /**
- * Não existe gateway real conectado — este botão simula o que o webhook
- * faria quando o provedor confirma o pagamento, para dar pra testar o fluxo
- * completo (cobrança → confirmação → mensalidade paga) sem credenciais reais.
+ * Só funciona em modo simulação (sem ASAAS_API_KEY): imita o que o webhook
+ * faria quando o gateway confirma o pagamento, para testar o fluxo completo
+ * sem credenciais reais. Com o gateway real conectado, quem confirma é
+ * sempre o webhook — nunca o próprio associado.
  */
 export async function simularConfirmacaoPagamento(chargeId: string, forma: string) {
+  if (gatewayReal) return { error: "Simulação indisponível: o gateway de pagamento real está conectado." };
+
   const supabase = await createClient();
   const ctx = await getPortalContext(supabase);
   if (!ctx) return { error: "Sessão expirada." };
