@@ -33,13 +33,18 @@ export function MensalidadesList({ mensalidades, gatewayReal }: { mensalidades: 
   const [confirmando, setConfirmando] = useState(false);
   const [confirmado, setConfirmado] = useState(false);
   const [confirmError, setConfirmError] = useState("");
+  const [erroPagamento, setErroPagamento] = useState<{ id: string; mensagem: string } | null>(null);
 
   async function handlePagar(m: Mensalidade) {
     const forma = formaSelecionada[m.id] ?? "Pix";
     setLoadingId(m.id);
     const result = await iniciarPagamento(m.id, forma);
     setLoadingId(null);
-    if ("error" in result) return;
+    if ("error" in result) {
+      setErroPagamento({ id: m.id, mensagem: result.error });
+      return;
+    }
+    setErroPagamento(null);
     setCharge(result);
     setChargeForma(forma);
     setConfirmado(false);
@@ -131,6 +136,12 @@ export function MensalidadesList({ mensalidades, gatewayReal }: { mensalidades: 
                 >
                   {loadingId === m.id ? "Gerando cobrança..." : "Pagar"}
                 </button>
+
+                {erroPagamento?.id === m.id && (
+                  <p className="mt-2 rounded-[6px] border border-danger-600/30 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+                    {erroPagamento.mensagem}
+                  </p>
+                )}
               </div>
             )}
           </div>

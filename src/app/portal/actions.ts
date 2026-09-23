@@ -13,7 +13,15 @@ import { FormaPagamento } from "@/types";
  * só é aceita se pertencer ao associado da sessão — nunca confiamos num id
  * vindo do cliente sem essa checagem.
  */
-export async function iniciarPagamento(mensalidadeId: string, forma: FormaPagamento) {
+export async function iniciarPagamento(
+  mensalidadeId: string,
+  forma: FormaPagamento,
+): Promise<
+  | { error: string }
+  | { tipo: "pix"; chargeId: string; copiaECola: string; valor: number; expiraEm: string }
+  | { tipo: "boleto"; chargeId: string; linhaDigitavel: string; urlBoleto: string; valor: number }
+  | { tipo: "cartao"; chargeId: string; checkoutUrl: string; valor: number }
+> {
   const supabase = await createClient();
   const ctx = await getPortalContext(supabase);
   if (!ctx) return { error: "Sessão expirada. Entre novamente." };

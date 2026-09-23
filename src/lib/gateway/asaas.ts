@@ -196,6 +196,11 @@ async function buscarCobrancaAsaas(chargeId: string): Promise<AsaasPayment | nul
  * Cria a cobrança com o `billingType` pedido — ou, se `chargeIdExistente` vier
  * preenchido (cobrança já criada antecipadamente na adesão), atualiza essa
  * mesma cobrança em vez de criar outra (PUT em vez de POST).
+ *
+ * Se a cobrança referenciada não existir mais para a chave de API atual (404
+ * — por exemplo, foi criada num ambiente diferente do da chave configurada
+ * agora, sandbox vs. produção), cria uma cobrança nova em vez de falhar: uma
+ * `chargeIdExistente` inválida nunca deveria travar o pagamento permanentemente.
  */
 async function criarOuAtualizarCobranca(params: {
   billingType: "PIX" | "BOLETO" | "CREDIT_CARD";
@@ -207,11 +212,15 @@ async function criarOuAtualizarCobranca(params: {
   chargeIdExistente?: string;
 }): Promise<AsaasPayment> {
   if (params.chargeIdExistente) {
-    return atualizarCobrancaAsaas(params.chargeIdExistente, {
-      billingType: params.billingType,
-      valor: params.valor,
-      vencimento: params.vencimento,
-    });
+    try {
+      return await atualizarCobrancaAsaas(params.chargeIdExistente, {
+        billingType: params.billingType,
+        valor: params.valor,
+        vencimento: params.vencimento,
+      });
+    } catch (err) {
+      if (!(err instanceof AsaasApiError) || err.status !== 404) throw err;
+    }
   }
   return criarCobranca(params);
 }
