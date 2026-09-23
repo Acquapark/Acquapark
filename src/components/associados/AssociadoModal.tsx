@@ -52,6 +52,10 @@ export function AssociadoModal({
       setError("Preencha ao menos nome e CPF antes de salvar.");
       return;
     }
+    if (!form.email) {
+      setError("Informe o e-mail do associado — é para onde vai o contrato para assinatura.");
+      return;
+    }
     setSaving(true);
     setError("");
     const result = await createAssociado(form);

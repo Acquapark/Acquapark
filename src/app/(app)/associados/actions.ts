@@ -8,6 +8,50 @@ import { AssociadoStatus } from "@/types";
 import { calcularPrimeiroVencimento, gerarParcelas, valorComDesconto } from "@/lib/mensalidades-engine";
 import { RegraPrimeiraParcela } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
+import { gerarContratoParaAssociado, getModeloPadrao } from "@/lib/contracts/gerar";
+import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
+
+/**
+ * Gera o contrato a partir do modelo padrão e já envia para assinatura na
+ * Autentique — roda ao final do cadastro do associado. Nunca falha a
+ * criação do associado: se não houver modelo padrão, ou o envio der erro
+ * (API fora do ar, etc.), o contrato fica só "Gerado" (ou nem é criado) e a
+ * equipe resolve manualmente depois em Contrato → Enviar p/ assinatura.
+ */
+async function gerarEEnviarContratoAutomatico(
+  supabase: SupabaseClient,
+  params: { associadoId: string; associadoNome: string; associadoEmail: string; dataContrato: string; geradoPor: string | null },
+) {
+  try {
+    const modeloId = await getModeloPadrao(supabase);
+    if (!modeloId) return;
+
+    const contrato = await gerarContratoParaAssociado(supabase, {
+      associadoId: params.associadoId,
+      modeloId,
+      dataContrato: params.dataContrato,
+      geradoPor: params.geradoPor,
+    });
+    if ("error" in contrato) {
+      console.error("Contrato automático não gerado:", contrato.error);
+      return;
+    }
+
+    const { documentoId } = await criarDocumentoParaAssinatura({
+      nomeDocumento: `Contrato ${contrato.numero} - ${params.associadoNome}`,
+      conteudoHtml: contrato.conteudoHtml,
+      signerNome: params.associadoNome,
+      signerEmail: params.associadoEmail,
+    });
+
+    await supabase
+      .from("contratos_gerados")
+      .update({ status: "Enviado para assinatura", enviado_em: new Date().toISOString(), autentique_document_id: documentoId })
+      .eq("id", contrato.contratoId);
+  } catch (err) {
+    console.error("Falha ao gerar/enviar contrato automático para assinatura:", err);
+  }
+}
 
 function formatarDataBR(iso: string): string {
   return iso.split("-").reverse().join("/");
@@ -175,6 +219,7 @@ async function criarContratoEMensalidades(
 export async function createAssociado(form: AssociadoFormState) {
   const negado = await exigirPermissao("associados.criar");
   if (negado) return { error: negado.error };
+  if (!form.email) return { error: "Informe o e-mail do associado — é para onde vai o contrato para assinatura." };
   // O cadastro pode já vincular um plano (gera contrato e mensalidades): isso tem permissão própria.
   if (form.planoId) {
     const semPlano = await exigirPermissao("planos_associado.criar");
@@ -253,6 +298,18 @@ export async function createAssociado(form: AssociadoFormState) {
     .select("codigo")
     .single();
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  await gerarEEnviarContratoAutomatico(supabase, {
+    associadoId: associado.id as string,
+    associadoNome: form.nome,
+    associadoEmail: form.email,
+    dataContrato: new Date().toISOString().slice(0, 10),
+    geradoPor: user?.id ?? null,
+  });
+
+  revalidatePath(`/associados/${associado.id}`);
   revalidatePath("/associados");
   return {
     associadoId: associado.id as string,

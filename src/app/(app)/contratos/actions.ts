@@ -4,8 +4,10 @@ import { revalidatePath } from "next/cache";
 import mammoth from "mammoth";
 import { createClient } from "@/lib/supabase/server";
 import { getAssociadoById, getPlanos } from "@/lib/supabase/associados";
-import { getEmpresa, getModeloById } from "@/lib/supabase/contratos";
-import { findMissingVariables, substituteVariables } from "@/lib/contracts/variables";
+import { getEmpresa, getModeloById, getContratoGeradoById } from "@/lib/supabase/contratos";
+import { findMissingVariables } from "@/lib/contracts/variables";
+import { gerarContratoParaAssociado } from "@/lib/contracts/gerar";
+import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 
 export async function createModelo(formData: FormData) {
@@ -220,68 +222,70 @@ export async function checkContratoMissingVariables(associadoId: string, modeloI
   return { missing: missing.map((m) => ({ key: m.key, label: m.label, group: m.group })) };
 }
 
-export async function gerarContrato(params: { associadoId: string; modeloId: string; dataContrato: string }) {
+export async function gerarContrato(params: {
+  associadoId: string;
+  modeloId: string;
+  dataContrato: string;
+}): Promise<
+  | { error: string; missing?: { key: string; label: string; group: string }[] }
+  | { contratoId: string; numero: string }
+> {
   const negado = await exigirPermissao("contratos_gerados.criar");
   if (negado) return { error: negado.error };
   const supabase = await createClient();
-  const [result, modelo, empresa] = await Promise.all([
-    getAssociadoById(supabase, params.associadoId),
-    getModeloById(supabase, params.modeloId),
-    getEmpresa(supabase),
-  ]);
-
-  if (!result) return { error: "Associado não encontrado." };
-  if (!modelo) return { error: "Modelo não encontrado." };
-
-  const contratoMeta = {
-    numero: "",
-    data: params.dataContrato,
-    dataInicio: params.dataContrato,
-    dataFim: "",
-  };
-
-  const missing = findMissingVariables(modelo.conteudoHtml, {
-    associado: result.associado,
-    plano: null,
-    empresa,
-    contrato: contratoMeta,
-  });
-
-  if (missing.length > 0) {
-    return {
-      error: "O contrato possui informações obrigatórias que não foram preenchidas.",
-      missing: missing.map((m) => ({ key: m.key, label: m.label, group: m.group })),
-    };
-  }
-
-  const conteudoResolvido = substituteVariables(modelo.conteudoHtml, {
-    associado: result.associado,
-    plano: null,
-    empresa,
-    contrato: contratoMeta,
-  });
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data, error } = await supabase
-    .from("contratos_gerados")
-    .insert({
-      associado_id: params.associadoId,
-      modelo_id: modelo.id,
-      modelo_nome: modelo.nome,
-      modelo_versao: modelo.versao,
-      data_contrato: params.dataContrato,
-      conteudo_html: conteudoResolvido,
-      status: "Gerado",
-      gerado_por: user?.id ?? null,
-    })
-    .select("id, numero")
-    .single();
-
-  if (error || !data) return { error: error?.message ?? "Não foi possível gerar o contrato." };
+  const result = await gerarContratoParaAssociado(supabase, { ...params, geradoPor: user?.id ?? null });
+  if ("error" in result) return result;
 
   revalidatePath(`/associados/${params.associadoId}`);
-  return { contratoId: data.id as string, numero: data.numero as string };
+  return { contratoId: result.contratoId, numero: result.numero };
+}
+
+export async function setModeloPadrao(id: string) {
+  const negado = await exigirPermissao("modelos_contrato.editar");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+
+  await supabase.from("modelos_contrato").update({ padrao: false }).eq("padrao", true);
+  const { error } = await supabase.from("modelos_contrato").update({ padrao: true }).eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidatePath("/contratos");
+  return { success: true };
+}
+
+export async function enviarParaAssinatura(contratoId: string) {
+  const negado = await exigirPermissao("contratos_gerados.criar");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+
+  const contrato = await getContratoGeradoById(supabase, contratoId);
+  if (!contrato) return { error: "Contrato não encontrado." };
+
+  const result = await getAssociadoById(supabase, contrato.associadoId);
+  if (!result) return { error: "Associado não encontrado." };
+  if (!result.associado.email) return { error: "Este associado não tem e-mail cadastrado." };
+
+  try {
+    const { documentoId } = await criarDocumentoParaAssinatura({
+      nomeDocumento: `Contrato ${contrato.numero} - ${result.associado.nome}`,
+      conteudoHtml: contrato.conteudoHtml,
+      signerNome: result.associado.nome,
+      signerEmail: result.associado.email,
+    });
+
+    const { error } = await supabase
+      .from("contratos_gerados")
+      .update({ status: "Enviado para assinatura", enviado_em: new Date().toISOString(), autentique_document_id: documentoId })
+      .eq("id", contratoId);
+    if (error) return { error: error.message };
+  } catch (err) {
+    return { error: (err as Error).message };
+  }
+
+  revalidatePath(`/associados/${contrato.associadoId}`);
+  return { success: true };
 }

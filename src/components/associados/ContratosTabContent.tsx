@@ -12,7 +12,7 @@ import { Label, Select, Input } from "@/components/ui/Field";
 import { formatDate } from "@/lib/utils";
 import { ContratoGerado, ModeloContrato } from "@/lib/supabase/contratos";
 import { Associado } from "@/types";
-import { gerarContrato } from "@/app/(app)/contratos/actions";
+import { gerarContrato, enviarParaAssinatura } from "@/app/(app)/contratos/actions";
 
 const STATUS_TONE: Record<string, StatusTone> = {
   Rascunho: "neutral",
@@ -43,6 +43,8 @@ export function ContratosTabContent({
   const [error, setError] = useState("");
   const [missing, setMissing] = useState<{ key: string; label: string; group: string }[]>([]);
   const [viewing, setViewing] = useState<ContratoGerado | null>(null);
+  const [enviandoId, setEnviandoId] = useState<string | null>(null);
+  const [enviarError, setEnviarError] = useState("");
 
   function openModal() {
     setModeloId("");
@@ -62,13 +64,25 @@ export function ContratosTabContent({
     const result = await gerarContrato({ associadoId: associado.id, modeloId, dataContrato });
     setSaving(false);
 
-    if (result.error) {
+    if ("error" in result) {
       setError(result.error);
       if (result.missing) setMissing(result.missing);
       return;
     }
 
     setModalOpen(false);
+    router.refresh();
+  }
+
+  async function handleEnviar(contratoId: string) {
+    setEnviandoId(contratoId);
+    setEnviarError("");
+    const result = await enviarParaAssinatura(contratoId);
+    setEnviandoId(null);
+    if (result.error) {
+      setEnviarError(result.error);
+      return;
+    }
     router.refresh();
   }
 
@@ -88,6 +102,12 @@ export function ContratosTabContent({
         <p className="mb-3 text-xs text-warning-700">
           Nenhum modelo de contrato ativo. Cadastre um em Contratos → Modelos de contrato antes de gerar.
         </p>
+      )}
+
+      {enviarError && (
+        <div className="mb-3 rounded-[4px] border border-danger-600/30 bg-danger-50 px-3 py-2 text-xs text-danger-700">
+          {enviarError}
+        </div>
       )}
 
       <Table className="rounded-[6px] border border-gray-200">
@@ -118,10 +138,12 @@ export function ContratosTabContent({
                     <Eye size={13} />
                     Visualizar
                   </Button>
-                  <Button variant="ghost" size="sm" disabled title="Integração com Authentic ainda não disponível">
-                    <Send size={13} />
-                    Enviar p/ assinatura
-                  </Button>
+                  {(c.status === "Gerado" || c.status === "Recusado") && pode("contratos_gerados.criar") && (
+                    <Button variant="ghost" size="sm" onClick={() => handleEnviar(c.id)} disabled={enviandoId === c.id}>
+                      <Send size={13} />
+                      {enviandoId === c.id ? "Enviando..." : "Enviar p/ assinatura"}
+                    </Button>
+                  )}
                 </div>
               </Td>
             </Tr>

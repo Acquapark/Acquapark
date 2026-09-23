@@ -10,6 +10,7 @@ export interface ModeloContrato {
   versao: number;
   conteudoHtml: string;
   arquivoOriginalNome: string | null;
+  padrao: boolean;
   updatedAt: string;
 }
 
@@ -24,6 +25,7 @@ export interface ContratoGerado {
   conteudoHtml: string;
   status: string;
   geradoEm: string;
+  autentiqueDocumentId: string | null;
 }
 
 type Row = Record<string, unknown>;
@@ -38,6 +40,7 @@ function mapModelo(row: Row): ModeloContrato {
     versao: row.versao as number,
     conteudoHtml: (row.conteudo_html as string) ?? "",
     arquivoOriginalNome: (row.arquivo_original_nome as string) ?? null,
+    padrao: Boolean(row.padrao),
     updatedAt: row.updated_at as string,
   };
 }
@@ -120,6 +123,7 @@ export async function getContratosGeradosDoAssociado(
     conteudoHtml: row.conteudo_html as string,
     status: row.status as string,
     geradoEm: row.gerado_em as string,
+    autentiqueDocumentId: (row.autentique_document_id as string) ?? null,
   }));
 }
 
@@ -138,5 +142,6 @@ export async function getContratoGeradoById(supabase: SupabaseClient, id: string
     conteudoHtml: row.conteudo_html as string,
     status: row.status as string,
     geradoEm: row.gerado_em as string,
+    autentiqueDocumentId: (row.autentique_document_id as string) ?? null,
   };
 }

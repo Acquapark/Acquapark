@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Plus, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -16,7 +16,7 @@ import { ModeloContrato } from "@/lib/supabase/contratos";
 import { NovoModeloModal } from "@/components/contratos/NovoModeloModal";
 import { VariaveisTab } from "@/components/contratos/VariaveisTab";
 import { useAcesso } from "@/components/providers/AcessoProvider";
-import { deleteModelo, duplicateModelo, toggleModeloStatus } from "./actions";
+import { deleteModelo, duplicateModelo, toggleModeloStatus, setModeloPadrao } from "./actions";
 
 export function ContratosClient({ modelos }: { modelos: ModeloContrato[] }) {
   const router = useRouter();
@@ -34,6 +34,11 @@ export function ContratosClient({ modelos }: { modelos: ModeloContrato[] }) {
   async function handleDuplicate(id: string) {
     const result = await duplicateModelo(id);
     if (result.modeloId) router.push(`/contratos/modelos/${result.modeloId}`);
+  }
+
+  async function handleSetPadrao(id: string) {
+    await setModeloPadrao(id);
+    router.refresh();
   }
 
   async function handleConfirmDelete() {
@@ -91,7 +96,14 @@ export function ContratosClient({ modelos }: { modelos: ModeloContrato[] }) {
               {modelos.map((m) => (
                 <Tr key={m.id} onClick={() => router.push(`/contratos/modelos/${m.id}`)}>
                   <Td>
-                    <p className="font-medium text-gray-800">{m.nome}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="font-medium text-gray-800">{m.nome}</p>
+                      {m.padrao && (
+                        <span title="Modelo padrão — usado no envio automático ao cadastrar um associado">
+                          <Star size={13} className="fill-warning-500 text-warning-500" />
+                        </span>
+                      )}
+                    </div>
                     {m.descricao && <p className="text-xs text-gray-500">{m.descricao}</p>}
                   </Td>
                   <Td>{m.tipo}</Td>
@@ -113,6 +125,9 @@ export function ContratosClient({ modelos }: { modelos: ModeloContrato[] }) {
                             : []),
                           ...(pode("modelos_contrato.editar")
                             ? [{ label: m.status === "Ativo" ? "Inativar" : "Ativar", onClick: () => handleToggleStatus(m) }]
+                            : []),
+                          ...(pode("modelos_contrato.editar") && !m.padrao && m.status === "Ativo"
+                            ? [{ label: "Marcar como padrão", onClick: () => handleSetPadrao(m.id) }]
                             : []),
                           ...(pode("modelos_contrato.excluir")
                             ? [{ label: "Excluir", onClick: () => setDeleting(m), destructive: true }]
