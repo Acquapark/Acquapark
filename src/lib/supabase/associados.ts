@@ -183,3 +183,20 @@ export async function getPlanosTodos(supabase: SupabaseClient): Promise<Plano[]>
   if (error) throw error;
   return (data as unknown as Row[]).map((row) => mapPlano(row)!);
 }
+
+/**
+ * Ativa o associado assim que a 1ª parcela do contrato é paga — cadastro com
+ * plano começa "Pendente" (ver `createAssociado`) e só vira "Ativo" aqui.
+ * Chamada tanto pela confirmação via webhook quanto pelo registro manual de
+ * pagamento, sempre depois de marcar a mensalidade como "Pago". Nunca mexe se
+ * a parcela não for a 1ª, ou se o associado já não estiver "Pendente" (não
+ * regride quem já foi ativado/alterado manualmente).
+ */
+export async function ativarAssociadoSeParcela1Paga(
+  supabase: SupabaseClient,
+  associadoId: string,
+  numeroParcela: number | null,
+) {
+  if (numeroParcela !== 1) return;
+  await supabase.from("associados").update({ status: "Ativo" }).eq("id", associadoId).eq("status", "Pendente");
+}

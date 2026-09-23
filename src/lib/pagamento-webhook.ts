@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { ativarAssociadoSeParcela1Paga } from "@/lib/supabase/associados";
 
 /**
  * Fluxo da seção 10 do PRD: gateway confirma → webhook → localiza a
@@ -18,7 +19,7 @@ export async function processarConfirmacaoPagamento(params: { chargeId: string; 
 
   const { data: mensalidade, error: findError } = await admin
     .from("mensalidades")
-    .select("id, associado_id, valor, status")
+    .select("id, associado_id, valor, status, numero_parcela")
     .eq("gateway_charge_id", params.chargeId)
     .maybeSingle();
 
@@ -41,6 +42,8 @@ export async function processarConfirmacaoPagamento(params: { chargeId: string; 
     forma_pagamento: params.formaPagamento,
     referencia: params.chargeId,
   });
+
+  await ativarAssociadoSeParcela1Paga(admin, mensalidade.associado_id as string, mensalidade.numero_parcela as number | null);
 
   return { success: true, associadoId: mensalidade.associado_id as string };
 }

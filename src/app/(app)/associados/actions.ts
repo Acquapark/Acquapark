@@ -12,6 +12,7 @@ import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import { gerarContratoParaAssociado, getModeloPadrao } from "@/lib/contracts/gerar";
 import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
+import { ativarAssociadoSeParcela1Paga } from "@/lib/supabase/associados";
 
 /**
  * Gera o contrato a partir do modelo padrão e já envia para assinatura na
@@ -304,7 +305,10 @@ export async function createAssociado(form: AssociadoFormState) {
       estado: form.estado || null,
       observacoes: form.observacoes || null,
       plano_id: form.planoId || null,
-      status: "Ativo",
+      // Com plano vinculado, o associado só vira "Ativo" quando a 1ª parcela
+      // for paga (ver `ativarAssociadoSeParcela1Paga`) — sem plano não há
+      // parcela a esperar, então já entra "Ativo".
+      status: form.planoId && form.dataInicio ? "Pendente" : "Ativo",
     })
     .select("id, numero")
     .single();
@@ -578,11 +582,15 @@ export async function registrarPagamento(
   });
   if (pagamentoError) return { error: pagamentoError.message };
 
-  const { error: mensalidadeError } = await supabase
+  const { data: mensalidade, error: mensalidadeError } = await supabase
     .from("mensalidades")
     .update({ status: "Pago", forma_pagamento: params.formaPagamento, pago_em: new Date().toISOString() })
-    .eq("id", mensalidadeId);
+    .eq("id", mensalidadeId)
+    .select("numero_parcela")
+    .single();
   if (mensalidadeError) return { error: mensalidadeError.message };
+
+  await ativarAssociadoSeParcela1Paga(supabase, associadoId, mensalidade?.numero_parcela as number | null);
 
   revalidatePath(`/associados/${associadoId}`);
   revalidatePath("/financeiro");
