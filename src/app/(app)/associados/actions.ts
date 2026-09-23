@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
 import { calcularPrimeiroVencimento, gerarParcelas, valorComDesconto } from "@/lib/mensalidades-engine";
@@ -51,6 +52,44 @@ async function gerarEEnviarContratoAutomatico(
       .eq("id", contrato.contratoId);
   } catch (err) {
     console.error("Falha ao gerar/enviar contrato automático para assinatura:", err);
+  }
+}
+
+/**
+ * Cria o acesso ao Portal do Associado automaticamente no cadastro, com senha
+ * padrão = CPF (só números). Nunca falha a criação do associado: se o e-mail
+ * já estiver em uso por outra conta, ou a criação der erro por qualquer
+ * motivo, o acesso simplesmente não é criado e a equipe pode criar manualmente
+ * depois pela aba Acesso — mesmo padrão não-bloqueante do contrato automático.
+ */
+async function criarAcessoAutomatico(associadoId: string, email: string, cpf: string) {
+  try {
+    const senha = cpf.replace(/\D/g, "");
+    if (senha.length < 6) return;
+
+    const admin = createAdminClient();
+    const { data: created, error: authError } = await admin.auth.admin.createUser({
+      email,
+      password: senha,
+      email_confirm: true,
+    });
+    if (authError || !created.user) {
+      console.error("Acesso automático ao Portal não criado:", authError?.message);
+      return;
+    }
+
+    const { error: linkError } = await admin.from("associado_acessos").insert({
+      id: created.user.id,
+      associado_id: associadoId,
+      email,
+      status: "Ativo",
+    });
+    if (linkError) {
+      await admin.auth.admin.deleteUser(created.user.id);
+      console.error("Acesso automático ao Portal não vinculado:", linkError.message);
+    }
+  } catch (err) {
+    console.error("Falha ao criar acesso automático ao Portal:", err);
   }
 }
 
@@ -310,6 +349,8 @@ export async function createAssociado(form: AssociadoFormState) {
     .insert({ associado_id: associado.id })
     .select("codigo")
     .single();
+
+  await criarAcessoAutomatico(associado.id as string, form.email, form.cpf);
 
   const {
     data: { user },
