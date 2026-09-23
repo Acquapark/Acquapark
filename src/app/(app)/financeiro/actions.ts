@@ -280,7 +280,15 @@ export async function cancelarMensalidade(mensalidadeId: string): Promise<{ erro
 
   const { error: updateError } = await supabase
     .from("mensalidades")
-    .update({ status: "Cancelado", cancelado_em: new Date().toISOString(), cancelado_por: user?.id ?? null })
+    .update({
+      status: "Cancelado",
+      cancelado_em: new Date().toISOString(),
+      cancelado_por: user?.id ?? null,
+      // A Asaas não tem um status "cancelado" próprio no payload de delete (só a
+      // flag `deleted`) — grava esse marcador nosso mesmo, pra "Status Asaas" na
+      // tela não ficar com um valor velho (ex: "PENDING") depois do cancelamento.
+      ...(chargeId ? { asaas_status: "DELETED", asaas_last_sync_at: new Date().toISOString() } : {}),
+    })
     .eq("id", mensalidadeId);
   if (updateError) return { error: updateError.message };
 
