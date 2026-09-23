@@ -163,7 +163,13 @@ export const MODULOS: ModuloDef[] = [
         chave: "contas_receber",
         rotulo: "Contas a receber (mensalidades)",
         descricao: "Também vale para a aba Financeiro do perfil do associado.",
-        acoes: [A.visualizar, { chave: "receber", rotulo: "Registrar pagamento" }],
+        acoes: [
+          A.visualizar,
+          { chave: "receber", rotulo: "Registrar pagamento" },
+          { chave: "criar", rotulo: "Criar / sincronizar cobrança" },
+          { chave: "editar", rotulo: "Editar vencimento" },
+          { chave: "cancelar", rotulo: "Cancelar mensalidade" },
+        ],
       },
       { chave: "recebimentos", rotulo: "Recebimentos", acoes: [A.visualizar] },
       {

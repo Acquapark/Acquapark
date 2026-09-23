@@ -10,6 +10,7 @@ import { RegraPrimeiraParcela } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import { gerarContratoParaAssociado, getModeloPadrao } from "@/lib/contracts/gerar";
 import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
+import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
 
 /**
  * Gera o contrato a partir do modelo padrão e já envia para assinatura na
@@ -200,18 +201,30 @@ async function criarContratoEMensalidades(
     vencimentoNaContratacao,
   });
 
-  const { error: mensalidadesError } = await supabase.from("mensalidades").insert(
-    parcelas.map((p) => ({
-      associado_id: params.associadoId,
-      contrato_id: contrato.id,
-      numero_parcela: p.numeroParcela,
-      total_parcelas: p.totalParcelas,
-      vencimento: p.vencimento,
-      valor: p.valor,
-      status: "Pendente",
-    })),
-  );
+  const { data: mensalidadesInseridas, error: mensalidadesError } = await supabase
+    .from("mensalidades")
+    .insert(
+      parcelas.map((p) => ({
+        associado_id: params.associadoId,
+        contrato_id: contrato.id,
+        numero_parcela: p.numeroParcela,
+        total_parcelas: p.totalParcelas,
+        vencimento: p.vencimento,
+        valor: p.valor,
+        status: "Pendente",
+      })),
+    )
+    .select("id");
   if (mensalidadesError) return { error: mensalidadesError.message };
+
+  // Cria a cobrança correspondente na Asaas pra cada mensalidade — em sequência
+  // (evita rajada na API) e sem bloquear a criação do associado: uma falha aqui
+  // fica registrada em `asaas_sync_error` e pode ser reprocessada depois pelo
+  // botão "Sincronizar" no Financeiro, mesmo padrão não-bloqueante usado no
+  // envio automático de contrato pra assinatura.
+  for (const m of mensalidadesInseridas ?? []) {
+    await sincronizarCobrancaAsaas(supabase, m.id as string);
+  }
 
   return { contratoId: contrato.id as string, numero: contrato.numero as string };
 }

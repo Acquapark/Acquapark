@@ -43,6 +43,8 @@ function mapMensalidade(row: Row): Mensalidade {
     formaPagamento: (row.forma_pagamento as string) ?? (pagamento?.forma_pagamento as string | undefined),
     pagamentoEm: (row.pago_em as string) ?? (pagamento?.pago_em as string | undefined),
     gatewayChargeId: (row.gateway_charge_id as string) ?? undefined,
+    asaasStatus: (row.asaas_status as string) ?? undefined,
+    asaasSyncError: (row.asaas_sync_error as string) ?? undefined,
   };
 }
 
@@ -113,7 +115,7 @@ const DETAIL_SELECT = `
   *,
   planos ( id, nome, valor, dependentes_permitidos, beneficios, quantidade_mensalidades, dia_vencimento, regra_primeira_parcela, vencimento_na_contratacao ),
   dependentes ( id, nome, cpf, parentesco, nascimento, ativo ),
-  mensalidades ( id, contrato_id, numero_parcela, total_parcelas, vencimento, valor, status, forma_pagamento, pago_em, gateway_charge_id, pagamentos ( forma_pagamento, pago_em ) ),
+  mensalidades ( id, contrato_id, numero_parcela, total_parcelas, vencimento, valor, status, forma_pagamento, pago_em, gateway_charge_id, asaas_status, asaas_sync_error, pagamentos ( forma_pagamento, pago_em ) ),
   credenciais ( id, codigo, ativa, acessos ( id, tipo, resultado, motivo, registrado_em, catracas ( nome, tipo ) ) )
 `;
 

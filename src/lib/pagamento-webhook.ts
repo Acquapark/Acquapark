@@ -73,17 +73,37 @@ const BILLING_TYPE_PARA_FORMA: Record<string, string> = {
 
 const EVENTOS_PAGO = new Set(["PAYMENT_RECEIVED", "PAYMENT_CONFIRMED"]);
 const EVENTOS_CANCELADO = new Set(["PAYMENT_DELETED", "PAYMENT_REFUNDED"]);
+const EVENTOS_RECONHECIDOS = new Set([...EVENTOS_PAGO, ...EVENTOS_CANCELADO, "PAYMENT_OVERDUE"]);
 
 /**
- * Ponto de entrada do webhook do Asaas (POST /api/webhooks/asaas). Só reage
- * ao que muda o status da mensalidade; os demais eventos (visualizou o
- * boleto, foi para análise de risco etc.) retornam sucesso sem fazer nada —
+ * Grava só o status bruto do gateway (`asaas_status`) — nunca o status de
+ * negócio local (`status`), que continua controlado só pelos fluxos acima.
+ * "Vencido" continua calculado on-the-fly (vencimento < hoje), não gravado.
+ */
+async function registrarStatusAsaas(chargeId: string, status: string) {
+  const admin = createAdminClient();
+  await admin
+    .from("mensalidades")
+    .update({ asaas_status: status, asaas_last_sync_at: new Date().toISOString() })
+    .eq("gateway_charge_id", chargeId);
+}
+
+/**
+ * Ponto de entrada do webhook do Asaas (POST /api/webhooks/asaas). Reage ao
+ * que muda o status da mensalidade (pago/cancelado) e registra o status bruto
+ * pros eventos reconhecidos, incluindo vencida; os demais eventos (visualizou
+ * o boleto, foi para análise de risco etc.) retornam sucesso sem fazer nada —
  * o Asaas não precisa saber que ignoramos, só que recebemos.
  */
-export async function processarEventoAsaas(evento: string, payment: { id: string; billingType?: string }) {
+export async function processarEventoAsaas(evento: string, payment: { id: string; billingType?: string; status?: string }) {
   const formaPagamento = BILLING_TYPE_PARA_FORMA[payment.billingType ?? ""] ?? "Pix";
+
+  if (payment.status && EVENTOS_RECONHECIDOS.has(evento)) {
+    await registrarStatusAsaas(payment.id, payment.status);
+  }
 
   if (EVENTOS_PAGO.has(evento)) return processarConfirmacaoPagamento({ chargeId: payment.id, formaPagamento });
   if (EVENTOS_CANCELADO.has(evento)) return reverterPagamento(payment.id);
+  if (evento === "PAYMENT_OVERDUE") return { success: true, vencida: true };
   return { success: true, ignorado: true };
 }

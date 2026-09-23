@@ -5,7 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { FORMAS_PAGAMENTO_DESPESA } from "@/lib/financeiro-constantes";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import { paymentGateway } from "@/lib/gateway";
-import { Pagador } from "@/lib/gateway/types";
+import { Pagador, TipoCobranca } from "@/lib/gateway/types";
+import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
 import { FormaPagamento } from "@/types";
 
 export interface DespesaInput {
@@ -121,7 +122,7 @@ export async function cobrarMensalidade(mensalidadeId: string, forma: FormaPagam
   const { data: mensalidade, error: fetchError } = await supabase
     .from("mensalidades")
     .select(
-      "id, associado_id, valor, vencimento, status, numero_parcela, total_parcelas, associados ( nome, cpf, email, telefone )",
+      "id, associado_id, valor, vencimento, status, numero_parcela, total_parcelas, gateway_charge_id, associados ( nome, cpf, email, telefone )",
     )
     .eq("id", mensalidadeId)
     .maybeSingle();
@@ -146,6 +147,9 @@ export async function cobrarMensalidade(mensalidadeId: string, forma: FormaPagam
   const descricao = `Aqua Park — parcela ${mensalidade.numero_parcela}/${mensalidade.total_parcelas}`;
   const valor = Number(mensalidade.valor);
   const vencimento = mensalidade.vencimento as string;
+  // Se a cobrança já existe (criada antecipadamente na adesão), atualiza-a em
+  // vez de criar outra.
+  const chargeIdExistente = (mensalidade.gateway_charge_id as string | null) ?? undefined;
 
   try {
     let resultado:
@@ -155,22 +159,22 @@ export async function cobrarMensalidade(mensalidadeId: string, forma: FormaPagam
     let chargeId: string;
 
     if (forma === "Pix") {
-      const charge = await paymentGateway.criarCobrancaPix({ mensalidadeId, valor, vencimento, descricao, pagador });
+      const charge = await paymentGateway.criarCobrancaPix({ mensalidadeId, valor, vencimento, descricao, pagador, chargeIdExistente });
       chargeId = charge.chargeId;
       resultado = { tipo: "pix", copiaECola: charge.copiaECola, expiraEm: charge.expiraEm };
     } else if (forma === "Boleto") {
-      const charge = await paymentGateway.criarCobrancaBoleto({ mensalidadeId, valor, vencimento, descricao, pagador });
+      const charge = await paymentGateway.criarCobrancaBoleto({ mensalidadeId, valor, vencimento, descricao, pagador, chargeIdExistente });
       chargeId = charge.chargeId;
       resultado = { tipo: "boleto", linhaDigitavel: charge.linhaDigitavel, urlBoleto: charge.urlBoleto };
     } else {
-      const charge = await paymentGateway.criarCheckoutCartao({ mensalidadeId, valor, vencimento, descricao, pagador });
+      const charge = await paymentGateway.criarCheckoutCartao({ mensalidadeId, valor, vencimento, descricao, pagador, chargeIdExistente });
       chargeId = charge.chargeId;
       resultado = { tipo: "cartao", checkoutUrl: charge.checkoutUrl };
     }
 
     await supabase
       .from("mensalidades")
-      .update({ status: "Em processamento", gateway_charge_id: chargeId, forma_pagamento: forma })
+      .update({ status: "Em processamento", gateway_charge_id: chargeId, forma_pagamento: forma, asaas_billing_type: forma })
       .eq("id", mensalidadeId);
 
     revalidatePath(`/associados/${mensalidade.associado_id}`);
@@ -179,6 +183,124 @@ export async function cobrarMensalidade(mensalidadeId: string, forma: FormaPagam
   } catch (e) {
     return { error: e instanceof Error ? e.message : "Não foi possível gerar a cobrança. Tente novamente." };
   }
+}
+
+/** Mapeia o texto livre já usado em `forma_pagamento`/`asaas_billing_type` pro tipo que o gateway espera. */
+function formaParaTipo(forma: string | null | undefined): TipoCobranca {
+  if (forma === "Pix") return "Pix";
+  if (forma === "Boleto") return "Boleto";
+  if (forma === "Cartão de crédito") return "Cartão";
+  return "Undefined";
+}
+
+/** Status da cobrança na Asaas em que uma edição/cancelamento ainda é permitido — fora disso (pago, estornado etc.) a cobrança já seguiu adiante e não pode ser alterada por aqui. */
+const STATUS_ASAAS_EDITAVEL = new Set(["PENDING", "OVERDUE"]);
+
+export async function alterarVencimentoMensalidade(
+  mensalidadeId: string,
+  novoVencimento: string,
+): Promise<{ error: string } | { success: true }> {
+  const negado = await exigirPermissao("contas_receber.editar");
+  if (negado) return { error: negado.error };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(novoVencimento)) return { error: "Data inválida." };
+
+  const supabase = await createClient();
+  const { data: mensalidade, error: fetchError } = await supabase
+    .from("mensalidades")
+    .select("id, associado_id, valor, status, gateway_charge_id, asaas_billing_type")
+    .eq("id", mensalidadeId)
+    .maybeSingle();
+  if (fetchError || !mensalidade) return { error: "Mensalidade não encontrada." };
+  if (mensalidade.status === "Pago") return { error: "Esta mensalidade já está paga — não é possível alterar o vencimento." };
+  if (mensalidade.status === "Cancelado") return { error: "Esta mensalidade está cancelada." };
+
+  const chargeId = mensalidade.gateway_charge_id as string | null;
+  if (chargeId) {
+    try {
+      const cobranca = await paymentGateway.buscarCobranca(chargeId);
+      if (cobranca && !STATUS_ASAAS_EDITAVEL.has(cobranca.status)) {
+        return { error: `A cobrança no Asaas está em um estado que não permite alteração de vencimento (${cobranca.status}).` };
+      }
+
+      const atualizada = await paymentGateway.atualizarCobranca(chargeId, {
+        tipo: formaParaTipo(mensalidade.asaas_billing_type as string | null),
+        valor: Number(mensalidade.valor),
+        vencimento: novoVencimento,
+      });
+
+      const { error: updateError } = await supabase
+        .from("mensalidades")
+        .update({
+          vencimento: novoVencimento,
+          asaas_status: atualizada.status,
+          asaas_last_sync_at: new Date().toISOString(),
+          asaas_sync_error: null,
+        })
+        .eq("id", mensalidadeId);
+      if (updateError) return { error: updateError.message };
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Não foi possível atualizar o vencimento no Asaas." };
+    }
+  } else {
+    const { error: updateError } = await supabase.from("mensalidades").update({ vencimento: novoVencimento }).eq("id", mensalidadeId);
+    if (updateError) return { error: updateError.message };
+  }
+
+  revalidatePath(`/associados/${mensalidade.associado_id}`);
+  revalidate();
+  return { success: true };
+}
+
+export async function cancelarMensalidade(mensalidadeId: string): Promise<{ error: string } | { success: true }> {
+  const negado = await exigirPermissao("contas_receber.cancelar");
+  if (negado) return { error: negado.error };
+
+  const supabase = await createClient();
+  const { data: mensalidade, error: fetchError } = await supabase
+    .from("mensalidades")
+    .select("id, associado_id, status, gateway_charge_id")
+    .eq("id", mensalidadeId)
+    .maybeSingle();
+  if (fetchError || !mensalidade) return { error: "Mensalidade não encontrada." };
+  if (mensalidade.status === "Pago") return { error: "Esta mensalidade já está paga — não é possível cancelar." };
+  if (mensalidade.status === "Cancelado") return { error: "Esta mensalidade já está cancelada." };
+
+  const chargeId = mensalidade.gateway_charge_id as string | null;
+  if (chargeId) {
+    try {
+      await paymentGateway.cancelarCobranca(chargeId);
+    } catch (e) {
+      return { error: e instanceof Error ? e.message : "Não foi possível cancelar a cobrança no Asaas." };
+    }
+  }
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { error: updateError } = await supabase
+    .from("mensalidades")
+    .update({ status: "Cancelado", cancelado_em: new Date().toISOString(), cancelado_por: user?.id ?? null })
+    .eq("id", mensalidadeId);
+  if (updateError) return { error: updateError.message };
+
+  revalidatePath(`/associados/${mensalidade.associado_id}`);
+  revalidate();
+  return { success: true };
+}
+
+export async function sincronizarMensalidade(mensalidadeId: string) {
+  const negado = await exigirPermissao("contas_receber.criar");
+  if (negado) return { error: negado.error };
+
+  const supabase = await createClient();
+  const resultado = await sincronizarCobrancaAsaas(supabase, mensalidadeId);
+
+  const { data: mensalidade } = await supabase.from("mensalidades").select("associado_id").eq("id", mensalidadeId).maybeSingle();
+  if (mensalidade) revalidatePath(`/associados/${mensalidade.associado_id}`);
+  revalidate();
+
+  return resultado;
 }
 
 export async function excluirDespesa(id: string) {

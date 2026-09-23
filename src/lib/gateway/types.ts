@@ -37,6 +37,20 @@ export interface CardCheckout {
   valor: number;
 }
 
+/** Tipo de cobrança do lado do gateway — "Undefined" deixa o pagador escolher depois (usado na criação antecipada). */
+export type TipoCobranca = "Pix" | "Boleto" | "Cartão" | "Undefined";
+
+/** Estado resumido de uma cobrança já existente no gateway — usado pela sincronização, edição de vencimento e cancelamento. */
+export interface CobrancaResumo {
+  chargeId: string;
+  /** Status bruto do gateway (ex: "PENDING", "RECEIVED", "OVERDUE") — nunca confundir com o status de negócio local da mensalidade. */
+  status: string;
+  tipo: TipoCobranca;
+  vencimento: string;
+  valor: number;
+  invoiceUrl: string;
+}
+
 export interface PaymentGateway {
   criarCobrancaPix(params: {
     mensalidadeId: string;
@@ -44,6 +58,8 @@ export interface PaymentGateway {
     vencimento: string;
     descricao: string;
     pagador: Pagador;
+    /** Se a cobrança já existir no gateway (criação antecipada), atualiza-a em vez de criar outra. */
+    chargeIdExistente?: string;
   }): Promise<PixCharge>;
   criarCobrancaBoleto(params: {
     mensalidadeId: string;
@@ -51,6 +67,7 @@ export interface PaymentGateway {
     vencimento: string;
     descricao: string;
     pagador: Pagador;
+    chargeIdExistente?: string;
   }): Promise<BoletoCharge>;
   criarCheckoutCartao(params: {
     mensalidadeId: string;
@@ -58,5 +75,23 @@ export interface PaymentGateway {
     vencimento: string;
     descricao: string;
     pagador: Pagador;
+    chargeIdExistente?: string;
   }): Promise<CardCheckout>;
+  /** Cria a cobrança com o método de pagamento "a definir" — o pagador escolhe depois. Usada na criação antecipada, no momento da adesão. */
+  criarCobrancaPendente(params: {
+    mensalidadeId: string;
+    valor: number;
+    vencimento: string;
+    descricao: string;
+    pagador: Pagador;
+  }): Promise<CobrancaResumo>;
+  /** Consulta o estado atual de uma cobrança já existente. */
+  buscarCobranca(chargeId: string): Promise<CobrancaResumo | null>;
+  /** Atualiza vencimento/valor/tipo de uma cobrança existente. Só funciona enquanto ela estiver pendente ou vencida no gateway. */
+  atualizarCobranca(
+    chargeId: string,
+    params: { tipo: TipoCobranca; valor: number; vencimento: string },
+  ): Promise<CobrancaResumo>;
+  /** Cancela (remove) a cobrança no gateway. Não representa estorno de um pagamento já confirmado. */
+  cancelarCobranca(chargeId: string): Promise<{ cancelada: boolean }>;
 }

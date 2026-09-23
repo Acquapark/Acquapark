@@ -21,7 +21,7 @@ export async function iniciarPagamento(mensalidadeId: string, forma: FormaPagame
   const { data: mensalidade, error: fetchError } = await supabase
     .from("mensalidades")
     .select(
-      "id, associado_id, valor, vencimento, status, numero_parcela, total_parcelas, associados ( nome, cpf, email, telefone )",
+      "id, associado_id, valor, vencimento, status, numero_parcela, total_parcelas, gateway_charge_id, associados ( nome, cpf, email, telefone )",
     )
     .eq("id", mensalidadeId)
     .eq("associado_id", ctx.associadoId)
@@ -48,16 +48,19 @@ export async function iniciarPagamento(mensalidadeId: string, forma: FormaPagame
   const descricao = `Aqua Park — parcela ${mensalidade.numero_parcela}/${mensalidade.total_parcelas}`;
   const valor = Number(mensalidade.valor);
   const vencimento = mensalidade.vencimento as string;
+  // Se a cobrança já existe (criada antecipadamente na adesão), atualiza-a em
+  // vez de criar outra — a Asaas já conhece o vencimento desde então.
+  const chargeIdExistente = (mensalidade.gateway_charge_id as string | null) ?? undefined;
 
   try {
     if (forma === "Pix") {
-      const charge = await paymentGateway.criarCobrancaPix({ mensalidadeId, valor, vencimento, descricao, pagador });
+      const charge = await paymentGateway.criarCobrancaPix({ mensalidadeId, valor, vencimento, descricao, pagador, chargeIdExistente });
       await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
       return { tipo: "pix" as const, chargeId: charge.chargeId, copiaECola: charge.copiaECola, valor: charge.valor, expiraEm: charge.expiraEm };
     }
 
     if (forma === "Boleto") {
-      const charge = await paymentGateway.criarCobrancaBoleto({ mensalidadeId, valor, vencimento, descricao, pagador });
+      const charge = await paymentGateway.criarCobrancaBoleto({ mensalidadeId, valor, vencimento, descricao, pagador, chargeIdExistente });
       await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
       return {
         tipo: "boleto" as const,
@@ -68,7 +71,7 @@ export async function iniciarPagamento(mensalidadeId: string, forma: FormaPagame
       };
     }
 
-    const charge = await paymentGateway.criarCheckoutCartao({ mensalidadeId, valor, vencimento, descricao, pagador });
+    const charge = await paymentGateway.criarCheckoutCartao({ mensalidadeId, valor, vencimento, descricao, pagador, chargeIdExistente });
     await marcarEmProcessamento(mensalidadeId, ctx.associadoId, charge.chargeId, forma);
     return { tipo: "cartao" as const, chargeId: charge.chargeId, checkoutUrl: charge.checkoutUrl, valor: charge.valor };
   } catch (e) {
@@ -87,7 +90,7 @@ async function marcarEmProcessamento(mensalidadeId: string, associadoId: string,
   const admin = createAdminClient();
   await admin
     .from("mensalidades")
-    .update({ status: "Em processamento", gateway_charge_id: chargeId, forma_pagamento: forma })
+    .update({ status: "Em processamento", gateway_charge_id: chargeId, forma_pagamento: forma, asaas_billing_type: forma })
     .eq("id", mensalidadeId)
     .eq("associado_id", associadoId);
 }

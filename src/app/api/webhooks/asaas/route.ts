@@ -20,13 +20,13 @@ export async function POST(request: NextRequest) {
 
   const body = await request.json().catch(() => null);
   const evento = body?.event as string | undefined;
-  const payment = body?.payment as { id?: string; billingType?: string } | undefined;
+  const payment = body?.payment as { id?: string; billingType?: string; status?: string } | undefined;
 
   if (!evento || !payment?.id) {
     return NextResponse.json({ error: "Payload inválido." }, { status: 400 });
   }
 
-  const result = await processarEventoAsaas(evento, { id: payment.id, billingType: payment.billingType });
+  const result = await processarEventoAsaas(evento, { id: payment.id, billingType: payment.billingType, status: payment.status });
   if ("error" in result) {
     // Loga para investigação, mas devolve 200: um erro nosso (ex: coluna cheia)
     // não deve gerar retentativas indefinidas do lado do Asaas.

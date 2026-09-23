@@ -59,6 +59,9 @@ export interface Mensalidade {
   formaPagamento?: string;
   pagamentoEm?: string;
   gatewayChargeId?: string;
+  /** Status bruto do gateway (ex: "PENDING", "RECEIVED") — nunca confundir com `status`, que é o status de negócio local. */
+  asaasStatus?: string;
+  asaasSyncError?: string;
 }
 
 export interface AcessoRegistro {
