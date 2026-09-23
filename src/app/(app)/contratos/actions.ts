@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import mammoth from "mammoth";
 import { createClient } from "@/lib/supabase/server";
-import { getAssociadoById, getPlanos } from "@/lib/supabase/associados";
+import { getAssociadoById, getPlanos, getPlanosTodos } from "@/lib/supabase/associados";
 import { getEmpresa, getModeloById, getContratoGeradoById } from "@/lib/supabase/contratos";
-import { findMissingVariables } from "@/lib/contracts/variables";
+import { calcularDatasContrato, findMissingVariables } from "@/lib/contracts/variables";
 import { gerarContratoParaAssociado } from "@/lib/contracts/gerar";
 import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
@@ -204,19 +204,23 @@ export async function checkContratoMissingVariables(associadoId: string, modeloI
   const negado = await exigirPermissao("contratos_gerados.criar");
   if (negado) return { error: negado.error };
   const supabase = await createClient();
-  const [result, modelo, empresa] = await Promise.all([
+  const [result, modelo, empresa, planos] = await Promise.all([
     getAssociadoById(supabase, associadoId),
     getModeloById(supabase, modeloId),
     getEmpresa(supabase),
+    getPlanosTodos(supabase),
   ]);
 
   if (!result || !modelo) return { error: "Associado ou modelo não encontrado." };
 
+  const plano = result.planoId ? (planos.find((p) => p.id === result.planoId) ?? null) : null;
+  const dataHoje = new Date().toISOString().slice(0, 10);
+  const { dataInicio, dataFim, diaVencimento } = calcularDatasContrato(result.associado.mensalidades);
   const missing = findMissingVariables(modelo.conteudoHtml, {
     associado: result.associado,
-    plano: null,
+    plano,
     empresa,
-    contrato: { numero: "", data: new Date().toISOString().slice(0, 10), dataInicio: "", dataFim: "" },
+    contrato: { numero: "", data: dataHoje, dataInicio, dataFim, diaVencimento },
   });
 
   return { missing: missing.map((m) => ({ key: m.key, label: m.label, group: m.group })) };

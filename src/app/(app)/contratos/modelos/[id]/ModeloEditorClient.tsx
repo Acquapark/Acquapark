@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/Field";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { InsertVariableMenu } from "@/components/contratos/InsertVariableMenu";
 import { ModeloContrato } from "@/lib/supabase/contratos";
-import { ContractData, substituteVariables } from "@/lib/contracts/variables";
+import { calcularDatasContrato, ContractData, substituteVariables } from "@/lib/contracts/variables";
 import { getPreviewData, updateModeloConteudo } from "../../actions";
 
 export function ModeloEditorClient({
@@ -73,15 +73,18 @@ export function ModeloEditorClient({
     setPreviewLoading(false);
     if ("error" in data) return;
 
+    const dataHoje = new Date().toISOString().slice(0, 10);
+    const { dataInicio, dataFim, diaVencimento } = calcularDatasContrato(data.associado.mensalidades);
     const contractData: ContractData = {
       associado: data.associado,
       plano: data.plano,
       empresa: data.empresa,
       contrato: {
         numero: "PREVIEW",
-        data: new Date().toISOString().slice(0, 10),
-        dataInicio: "",
-        dataFim: "",
+        data: dataHoje,
+        dataInicio,
+        dataFim,
+        diaVencimento,
       },
     };
     setPreviewHtml(substituteVariables(editorRef.current.innerHTML, contractData));

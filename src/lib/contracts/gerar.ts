@@ -1,8 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { getAssociadoById } from "@/lib/supabase/associados";
+import { getAssociadoById, getPlanosTodos } from "@/lib/supabase/associados";
 import { getEmpresa, getModeloById } from "@/lib/supabase/contratos";
-import { findMissingVariables, substituteVariables } from "@/lib/contracts/variables";
+import { calcularDatasContrato, findMissingVariables, substituteVariables } from "@/lib/contracts/variables";
 
 /** Gera a linha em `contratos_gerados` (variáveis do modelo já substituídas). Sem checagem de permissão — quem chama decide isso. */
 export async function gerarContratoParaAssociado(
@@ -12,20 +12,23 @@ export async function gerarContratoParaAssociado(
   | { error: string; missing?: { key: string; label: string; group: string }[] }
   | { contratoId: string; numero: string; conteudoHtml: string; associadoNome: string; associadoEmail: string }
 > {
-  const [result, modelo, empresa] = await Promise.all([
+  const [result, modelo, empresa, planos] = await Promise.all([
     getAssociadoById(supabase, params.associadoId),
     getModeloById(supabase, params.modeloId),
     getEmpresa(supabase),
+    getPlanosTodos(supabase),
   ]);
 
   if (!result) return { error: "Associado não encontrado." };
   if (!modelo) return { error: "Modelo não encontrado." };
 
-  const contratoMeta = { numero: "", data: params.dataContrato, dataInicio: params.dataContrato, dataFim: "" };
+  const plano = result.planoId ? (planos.find((p) => p.id === result.planoId) ?? null) : null;
+  const { dataInicio, dataFim, diaVencimento } = calcularDatasContrato(result.associado.mensalidades);
+  const contratoMeta = { numero: "", data: params.dataContrato, dataInicio, dataFim, diaVencimento };
 
   const missing = findMissingVariables(modelo.conteudoHtml, {
     associado: result.associado,
-    plano: null,
+    plano,
     empresa,
     contrato: contratoMeta,
   });
@@ -38,7 +41,7 @@ export async function gerarContratoParaAssociado(
 
   const conteudoResolvido = substituteVariables(modelo.conteudoHtml, {
     associado: result.associado,
-    plano: null,
+    plano,
     empresa,
     contrato: contratoMeta,
   });

@@ -25,11 +25,13 @@ export const CONTRACT_VARIABLES: VariableDef[] = [
   { key: "plano.valor", label: "Valor", group: "Plano" },
   { key: "plano.data_inicio", label: "Data de início", group: "Plano" },
   { key: "plano.data_vencimento", label: "Vencimento", group: "Plano" },
+  { key: "plano.quantidade_mensalidades", label: "Quantidade de mensalidades", group: "Plano" },
 
   { key: "contrato.numero", label: "Número", group: "Contrato" },
   { key: "contrato.data", label: "Data", group: "Contrato" },
   { key: "contrato.data_inicio", label: "Data de início", group: "Contrato" },
   { key: "contrato.data_fim", label: "Data de fim", group: "Contrato" },
+  { key: "contrato.dia_vencimento", label: "Dia de vencimento", group: "Contrato" },
 
   { key: "empresa.nome", label: "Nome", group: "Empresa" },
   { key: "empresa.razao_social", label: "Razão social", group: "Empresa" },
@@ -66,6 +68,37 @@ export interface ContratoMeta {
   data: string;
   dataInicio: string;
   dataFim: string;
+  diaVencimento: string;
+}
+
+/**
+ * Início, fim e dia de vencimento do contrato, a partir das mensalidades já
+ * geradas do associado (1ª e última parcela) — mais preciso que somar meses
+ * "na mão" (já lida com fevereiro, meses de 30 dias etc., porque usa as
+ * datas reais calculadas pelo motor de mensalidades) e mantém as três datas
+ * consistentes entre si, vindas da mesma fonte. Vazio quando o associado não
+ * tem plano/parcelas.
+ *
+ * `dataInicio` aqui é a data da 1ª parcela, não necessariamente igual à
+ * `data_inicio` gravada em `contratos` — coincidem exatamente quando o plano
+ * usa "vencimento na contratação" (o padrão adotado), podem diferir em
+ * poucos dias/semanas nos outros casos (1ª parcela cai no próximo dia de
+ * vencimento do plano).
+ */
+export function calcularDatasContrato(mensalidades: { vencimento: string }[]): {
+  dataInicio: string;
+  dataFim: string;
+  diaVencimento: string;
+} {
+  if (mensalidades.length === 0) return { dataInicio: "", dataFim: "", diaVencimento: "" };
+  const ordenadas = [...mensalidades].sort((a, b) => a.vencimento.localeCompare(b.vencimento));
+  const primeira = ordenadas[0];
+  const ultima = ordenadas.at(-1)!;
+  return {
+    dataInicio: primeira.vencimento,
+    dataFim: ultima.vencimento,
+    diaVencimento: String(Number(ultima.vencimento.split("-")[2])),
+  };
 }
 
 export interface ContractData {
@@ -121,6 +154,8 @@ function resolveValue(key: string, data: ContractData): string {
       return safeDate(data.contrato.dataInicio);
     case "plano.data_vencimento":
       return data.associado.vencimento ? safeDate(data.associado.vencimento) : "";
+    case "plano.quantidade_mensalidades":
+      return data.plano ? String(data.plano.quantidadeMensalidades) : "";
 
     case "contrato.numero":
       return data.contrato.numero ?? "";
@@ -130,6 +165,8 @@ function resolveValue(key: string, data: ContractData): string {
       return safeDate(data.contrato.dataInicio);
     case "contrato.data_fim":
       return data.contrato.dataFim ? safeDate(data.contrato.dataFim) : "";
+    case "contrato.dia_vencimento":
+      return data.contrato.diaVencimento ?? "";
 
     case "empresa.nome":
       return data.empresa.nome ?? "";
