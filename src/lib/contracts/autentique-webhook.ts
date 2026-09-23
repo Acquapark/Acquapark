@@ -2,15 +2,18 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { buscarDocumento } from "@/lib/signature/autentique";
 
-/** Tenta achar o id do documento em qualquer um dos formatos que a Autentique manda, conforme o tipo de evento. */
+/**
+ * Acha o id do documento no payload real da Autentique (confirmado inspecionando
+ * uma entrega real de "signature.viewed" — a doc oficial deles descreve um
+ * formato diferente do que chega de verdade):
+ * - eventos "signature.*": `event.data` É a assinatura, e `data.document` é o
+ *   id do documento-pai como string simples (não um objeto aninhado).
+ * - eventos "document.*": `event.data` É o documento, então `data.id` é o
+ *   próprio id (nunca confirmado com um payload real, só por simetria).
+ */
 function extrairDocumentoId(data: Record<string, unknown>): string | null {
-  const objeto = data.object as Record<string, unknown> | undefined;
-  if (!objeto) return null;
-  if (typeof objeto.id === "string" && (data.type as string | undefined)?.startsWith("document.")) return objeto.id;
-  const documento = objeto.document as Record<string, unknown> | undefined;
-  if (documento && typeof documento.id === "string") return documento.id;
-  if (typeof objeto.document_id === "string") return objeto.document_id;
-  if (typeof objeto.id === "string") return objeto.id;
+  if (typeof data.document === "string") return data.document;
+  if (typeof data.id === "string") return data.id;
   return null;
 }
 
@@ -19,11 +22,15 @@ function extrairDocumentoId(data: Record<string, unknown>): string | null {
  * não está mais "Enviado para assinatura", não faz nada (evita reprocessar
  * reentregas do mesmo evento).
  *
- * document.finished cobre tanto documento com 1 assinante (o caso de uso daqui)
- * quanto vários — dispara só quando todos já assinaram.
+ * O webhook cadastrado no painel da Autentique está no grupo de eventos
+ * "Assinatura", não "Documento" — por isso escutamos signature.accepted (o
+ * associado sempre é o único signatário de verdade em cada contrato, então
+ * "esse signatário aceitou" já equivale a "documento assinado") em vez de
+ * depender só de document.finished, que pode nunca chegar com essa
+ * configuração de webhook.
  */
 export async function processarEventoAutentique(type: string, data: Record<string, unknown>) {
-  if (type !== "document.finished" && type !== "signature.rejected") {
+  if (type !== "document.finished" && type !== "signature.accepted" && type !== "signature.rejected") {
     return { success: true, ignorado: true };
   }
 
@@ -46,7 +53,10 @@ export async function processarEventoAutentique(type: string, data: Record<strin
     return { success: true };
   }
 
-  // document.finished — busca o link do PDF assinado antes de marcar como Assinado.
+  // document.finished ou signature.accepted — busca o link do PDF assinado antes de marcar como Assinado.
+  // Logo após o webhook, o PDF assinado pode ainda não estar pronto do lado da
+  // Autentique — se `buscarDocumento` não trouxer o link ainda, guarda só o id
+  // do documento; ele pode ser buscado depois sob demanda.
   let documentoAssinadoUrl: string | null = null;
   try {
     const documento = await buscarDocumento(documentoId);
