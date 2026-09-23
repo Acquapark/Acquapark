@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Camera } from "lucide-react";
 import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { AssociadoFormState } from "../form-types";
-import { formatCEP, formatCPF, formatPhone } from "@/lib/utils";
+import { formatCEP, formatCPF, formatPhone, formatRG } from "@/lib/utils";
 
 export function StepDadosBasicos({
   form,
@@ -70,7 +70,13 @@ export function StepDadosBasicos({
 
           <div>
             <Label>RG</Label>
-            <Input value={form.rg} onChange={(e) => update({ rg: e.target.value })} placeholder="00.000.000-0" disabled={disabled} />
+            <Input
+              value={form.rg}
+              onChange={(e) => update({ rg: formatRG(e.target.value) })}
+              placeholder="00.000.000-0"
+              maxLength={12}
+              disabled={disabled}
+            />
           </div>
           <div>
             <Label>Data de nascimento</Label>

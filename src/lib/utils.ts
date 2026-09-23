@@ -13,6 +13,18 @@ export function formatCPF(value: string) {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
+/** RG não tem padrão nacional único, mas a maioria dos estados segue XX.XXX.XXX-X (o dígito verificador final às vezes é "X"). */
+export function formatRG(value: string) {
+  const chars = value
+    .toUpperCase()
+    .replace(/[^0-9X]/g, "")
+    .slice(0, 9);
+  return chars
+    .replace(/(\d{2})(\w)/, "$1.$2")
+    .replace(/(\d{3})(\w)/, "$1.$2")
+    .replace(/(\d{3})(\w)$/, "$1-$2");
+}
+
 export function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);
   if (digits.length <= 10) {

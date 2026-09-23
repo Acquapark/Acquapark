@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Label, Input, Select } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
-import { formatCPF, formatDate } from "@/lib/utils";
+import { formatCPF, formatDate, formatRG } from "@/lib/utils";
 import { Dependente, Plano } from "@/types";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { addDependente, removeDependente } from "@/app/(app)/associados/actions";
@@ -164,7 +164,7 @@ export function ProfileDependentesTab({
 
             <div>
               <Label>RG</Label>
-              <Input value={draft.rg} onChange={(e) => setDraft({ ...draft, rg: e.target.value })} />
+              <Input value={draft.rg} onChange={(e) => setDraft({ ...draft, rg: formatRG(e.target.value) })} maxLength={12} />
             </div>
             <div>
               <Label>Data de nascimento</Label>
