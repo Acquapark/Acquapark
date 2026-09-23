@@ -16,7 +16,11 @@ export async function POST(request: NextRequest) {
   const secret = process.env.AUTENTIQUE_WEBHOOK_SECRET;
   const assinaturaRecebida = request.headers.get("x-autentique-signature");
   if (!secret || !assinaturaRecebida) {
-    return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
+    // DEBUG TEMPORÁRIO — remover depois de descobrir o header real de assinatura.
+    return NextResponse.json(
+      { error: "Não autorizado.", debugHeaders: Object.fromEntries(request.headers.entries()) },
+      { status: 401 },
+    );
   }
 
   const rawBody = await request.text();
