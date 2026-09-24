@@ -13,6 +13,7 @@ import { gerarContratoParaAssociado, getModeloPadrao } from "@/lib/contracts/ger
 import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
 import { ativarAssociadoSeParcela1Paga } from "@/lib/supabase/associados";
+import { paymentGateway } from "@/lib/gateway";
 
 /**
  * Gera o contrato a partir do modelo padrão e já envia para assinatura na
@@ -461,16 +462,85 @@ export async function removeDependente(dependenteId: string, associadoId: string
   return { success: true };
 }
 
-export async function updateAssociadoStatus(id: string, status: AssociadoStatus) {
+const MENSALIDADE_CANCELAVEL = new Set(["Pendente", "Vencido", "Em processamento"]);
+
+/**
+ * Cancela o contrato ativo e todas as mensalidades ainda em aberto do
+ * associado — inclui cancelar a cobrança correspondente na Asaas antes de
+ * marcar cada mensalidade como "Cancelado" (nunca deleta, fica no histórico).
+ * Chamada ao inativar um associado ("encerramento definitivo"): sem isso, a
+ * Asaas continua tentando cobrar mensalidades de alguém que já saiu — o
+ * mesmo perigo de excluir o cliente direto na Asaas sem cancelar as
+ * cobranças, só que pelo caminho contrário.
+ *
+ * Nunca lança: cada mensalidade é tentada independentemente, e as que
+ * falharem (ex: Asaas fora do ar) ficam registradas em `falhas` pra quem
+ * chamou avisar a equipe — o inativar em si não deve travar por causa disso.
+ */
+async function cancelarContratoEParcelasDoAssociado(
+  supabase: SupabaseClient,
+  associadoId: string,
+): Promise<{ parcelasCanceladas: number; falhas: string[] }> {
+  const { data: mensalidades } = await supabase
+    .from("mensalidades")
+    .select("id, numero_parcela, gateway_charge_id")
+    .eq("associado_id", associadoId)
+    .in("status", Array.from(MENSALIDADE_CANCELAVEL));
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let parcelasCanceladas = 0;
+  const falhas: string[] = [];
+
+  for (const m of mensalidades ?? []) {
+    const chargeId = m.gateway_charge_id as string | null;
+    try {
+      if (chargeId) await paymentGateway.cancelarCobranca(chargeId);
+      const { error } = await supabase
+        .from("mensalidades")
+        .update({
+          status: "Cancelado",
+          cancelado_em: new Date().toISOString(),
+          cancelado_por: user?.id ?? null,
+          ...(chargeId ? { asaas_status: "DELETED", asaas_last_sync_at: new Date().toISOString() } : {}),
+        })
+        .eq("id", m.id);
+      if (error) throw new Error(error.message);
+      parcelasCanceladas++;
+    } catch (e) {
+      const motivo = e instanceof Error ? e.message : "Erro desconhecido";
+      falhas.push(`Parcela ${m.numero_parcela ?? "—"}: ${motivo}`);
+    }
+  }
+
+  await supabase.from("contratos").update({ status: "Cancelado" }).eq("associado_id", associadoId).eq("status", "Ativo");
+
+  return { parcelasCanceladas, falhas };
+}
+
+export async function updateAssociadoStatus(
+  id: string,
+  status: AssociadoStatus,
+): Promise<{ error: string } | { success: true; parcelasCanceladas?: number; falhasCancelamento?: string[] }> {
   const negado = await exigirPermissao("associados.alterar_status");
   if (negado) return { error: negado.error };
   const supabase = await createClient();
   const { error } = await supabase.from("associados").update({ status }).eq("id", id);
   if (error) return { error: error.message };
 
+  let parcelasCanceladas: number | undefined;
+  let falhasCancelamento: string[] | undefined;
+  if (status === "Inativo") {
+    const resultado = await cancelarContratoEParcelasDoAssociado(supabase, id);
+    parcelasCanceladas = resultado.parcelasCanceladas;
+    if (resultado.falhas.length > 0) falhasCancelamento = resultado.falhas;
+  }
+
   revalidatePath(`/associados/${id}`);
   revalidatePath("/associados");
-  return { success: true };
+  return { success: true, parcelasCanceladas, falhasCancelamento };
 }
 
 export async function ensureCredencial(associadoId: string) {

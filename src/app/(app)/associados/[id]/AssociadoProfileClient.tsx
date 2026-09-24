@@ -116,6 +116,7 @@ export function AssociadoProfileClient({
   const [codigo, setCodigo] = useState(credencialCodigo);
   const [statusPending, setStatusPending] = useState<StatusAction | null>(null);
   const [statusSaving, setStatusSaving] = useState(false);
+  const [statusResultMsg, setStatusResultMsg] = useState<{ tone: "success" | "warning"; texto: string } | null>(null);
 
   const planoAtual = planos.find((p) => p.id === planoId) ?? null;
 
@@ -169,9 +170,27 @@ export function AssociadoProfileClient({
   async function handleConfirmStatus() {
     if (!statusPending) return;
     setStatusSaving(true);
-    await updateAssociadoStatus(associado.id, statusPending.target);
+    const result = await updateAssociadoStatus(associado.id, statusPending.target);
     setStatusSaving(false);
     setStatusPending(null);
+
+    if ("error" in result) {
+      setStatusResultMsg({ tone: "warning", texto: result.error });
+      return;
+    }
+    if (result.falhasCancelamento?.length) {
+      setStatusResultMsg({
+        tone: "warning",
+        texto: `Associado inativado, mas ${result.falhasCancelamento.length} parcela(s) não puderam ser canceladas na Asaas automaticamente — cancele manualmente pelo Financeiro: ${result.falhasCancelamento.join("; ")}`,
+      });
+    } else if (result.parcelasCanceladas) {
+      setStatusResultMsg({
+        tone: "success",
+        texto: `Associado inativado. ${result.parcelasCanceladas} parcela(s) em aberto foram canceladas na Asaas e o contrato foi encerrado.`,
+      });
+    } else {
+      setStatusResultMsg(null);
+    }
     router.refresh();
   }
 
@@ -253,6 +272,18 @@ export function AssociadoProfileClient({
         </div>
       </Card>
 
+      {statusResultMsg && (
+        <div
+          className={`mb-5 rounded-[4px] border px-3 py-2 text-xs font-medium ${
+            statusResultMsg.tone === "success"
+              ? "border-success-600/30 bg-success-50 text-success-700"
+              : "border-warning-600/30 bg-warning-50 text-warning-700"
+          }`}
+        >
+          {statusResultMsg.texto}
+        </div>
+      )}
+
       <Card>
         <div className="px-4">
           <Tabs
@@ -302,7 +333,7 @@ export function AssociadoProfileClient({
               ? `Reativar "${associado.nome}"? O status voltará para Ativo e o acesso ao parque será liberado novamente.`
               : statusPending?.target === "Suspenso"
                 ? `Bloquear "${associado.nome}"? O status muda para Suspenso e o acesso ao parque passa a ser negado até a reativação.`
-                : `Inativar "${associado.nome}"? O status muda para Inativo. Use esta opção para encerramentos definitivos.`}
+                : `Inativar "${associado.nome}"? O status muda para Inativo, o contrato é encerrado e todas as mensalidades ainda em aberto são canceladas (inclusive na Asaas, pra não continuar cobrando). Use esta opção para encerramentos definitivos.`}
           </p>
         </ModalBody>
         <ModalFooter>
