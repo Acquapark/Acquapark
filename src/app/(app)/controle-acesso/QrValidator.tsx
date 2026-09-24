@@ -7,7 +7,8 @@ import { Card, CardHeader } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { cn } from "@/lib/utils";
-import { validarCodigo, type ValidacaoResultado } from "./actions";
+import { validarCodigo } from "./actions";
+import type { ValidacaoResultado } from "@/lib/controle-acesso/validar";
 
 export function QrValidator() {
   const router = useRouter();
