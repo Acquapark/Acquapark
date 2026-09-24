@@ -47,14 +47,14 @@ export function AssociadoModal({
     onClose();
   }
 
-  async function handleSave() {
+  async function handleSave(): Promise<boolean> {
     if (!form.nome || !form.cpf) {
       setError("Preencha ao menos nome e CPF antes de salvar.");
-      return;
+      return false;
     }
     if (!form.email) {
       setError("Informe o e-mail do associado — é para onde vai o contrato para assinatura.");
-      return;
+      return false;
     }
     setSaving(true);
     setError("");
@@ -62,12 +62,13 @@ export function AssociadoModal({
     setSaving(false);
     if (result.error) {
       setError(result.error);
-      return;
+      return false;
     }
     setSavedNumero(result.numero ?? null);
     setSavedAssociadoId(result.associadoId ?? null);
     setCredencialCodigo(result.credencialCodigo ?? null);
     router.refresh();
+    return true;
   }
 
   async function handleRegenerateCredencial() {
@@ -76,7 +77,14 @@ export function AssociadoModal({
     if (result.codigo) setCredencialCodigo(result.codigo);
   }
 
-  function handleConcluir() {
+  async function handleConcluir() {
+    // Se o funcionário nunca clicou em "Salvar" em nenhuma etapa, "Concluir"
+    // salva agora — sem isso, o cadastro inteiro era descartado ao fechar o
+    // modal (só existia no estado do formulário, nunca chegava ao banco).
+    if (!savedNumero) {
+      const salvou = await handleSave();
+      if (!salvou) return;
+    }
     handleClose();
     router.refresh();
   }
@@ -129,7 +137,11 @@ export function AssociadoModal({
             {saving ? "Salvando..." : savedNumero ? "Salvo" : "Salvar"}
           </Button>
           {step < STEPS.length - 1 && <Button onClick={() => setStep((s) => s + 1)}>Próximo</Button>}
-          {step === STEPS.length - 1 && <Button onClick={handleConcluir}>Concluir</Button>}
+          {step === STEPS.length - 1 && (
+            <Button onClick={handleConcluir} disabled={saving}>
+              {saving ? "Salvando..." : "Concluir"}
+            </Button>
+          )}
         </div>
       </ModalFooter>
     </Modal>
