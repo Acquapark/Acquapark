@@ -24,7 +24,13 @@ export async function gerarContratoParaAssociado(
 
   const plano = result.planoId ? (planos.find((p) => p.id === result.planoId) ?? null) : null;
   const { dataInicio, dataFim, diaVencimento } = calcularDatasContrato(result.associado.mensalidades);
-  const contratoMeta = { numero: "", data: params.dataContrato, dataInicio, dataFim, diaVencimento };
+  // Reserva o número (mesma sequência/formato do default da coluna `numero`)
+  // ANTES de montar o HTML — sem isso, {{contrato.numero}} sempre ficava
+  // vazio (o número só existia depois do insert), travando a geração sempre
+  // que um modelo usasse essa variável.
+  const { data: numeroReservado, error: numeroError } = await supabase.rpc("proximo_numero_contrato");
+  if (numeroError || !numeroReservado) return { error: numeroError?.message ?? "Não foi possível reservar o número do contrato." };
+  const contratoMeta = { numero: numeroReservado as string, data: params.dataContrato, dataInicio, dataFim, diaVencimento };
 
   const missing = findMissingVariables(modelo.conteudoHtml, {
     associado: result.associado,
@@ -49,6 +55,7 @@ export async function gerarContratoParaAssociado(
   const { data, error } = await supabase
     .from("contratos_gerados")
     .insert({
+      numero: contratoMeta.numero,
       associado_id: params.associadoId,
       modelo_id: modelo.id,
       modelo_nome: modelo.nome,
