@@ -1,7 +1,7 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { diaDaSemana, hojeBR, janelaDoDiaBR, mesAnterior, mesAtualBR, somarDias, ultimosMeses } from "@/lib/datas-br";
 import { getAcessosRecentes, AcessoRecente, getIngressos } from "./bilheteria";
-import { getContasReceber, getDespesas, getRecebimentos, ContaReceber, Recebimento } from "./financeiro";
+import { getContasReceber, getDespesas, getFaturamentoPorMes, getRecebimentos, ContaReceber, Recebimento } from "./financeiro";
 import { Despesa, Ingresso } from "@/types";
 
 const DIAS_SEMANA_CURTO = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -86,9 +86,8 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     despesas,
     ingressos,
     recebimentosMes,
-    recebimentosMesPassado,
     entradasSemana,
-    recebimentosOutrosMeses,
+    faturamentoMesesAnteriores,
   ] = await Promise.all([
     contarIngressosUtilizadosNoDia(supabase, hoje),
     contarIngressosUtilizadosNoDia(supabase, ontem),
@@ -99,19 +98,16 @@ export async function getDashboardData(supabase: SupabaseClient): Promise<Dashbo
     getDespesas(supabase),
     getIngressos(supabase),
     getRecebimentos(supabase, mesAtual),
-    getRecebimentos(supabase, mesPassado),
     getEntradasSemana(supabase, hoje),
-    Promise.all(outrosMeses.map((mes) => getRecebimentos(supabase, mes))),
+    // mesAtual não entra aqui — já veio completo (com detalhes) em recebimentosMes acima,
+    // reaproveitado pra não duplicar a mesma janela de datas em duas consultas.
+    getFaturamentoPorMes(supabase, [mesPassado, ...outrosMeses]),
   ]);
 
   const faturamentoMes = recebimentosMes.reduce((soma, r) => soma + r.valor, 0);
-  const faturamentoMesPassado = recebimentosMesPassado.reduce((soma, r) => soma + r.valor, 0);
+  const faturamentoMesPassado = faturamentoMesesAnteriores.get(mesPassado) ?? 0;
 
-  const recebimentosPorMes = new Map<string, number>([
-    [mesAtual, faturamentoMes],
-    [mesPassado, faturamentoMesPassado],
-    ...outrosMeses.map((mes, i) => [mes, recebimentosOutrosMeses[i].reduce((soma, r) => soma + r.valor, 0)] as const),
-  ]);
+  const recebimentosPorMes = new Map<string, number>([[mesAtual, faturamentoMes], ...faturamentoMesesAnteriores]);
   const faturamentoMensal = mesesGrafico.map((mes) => ({
     mes: MESES_CURTO[Number(mes.slice(5, 7)) - 1],
     valor: recebimentosPorMes.get(mes) ?? 0,

@@ -104,6 +104,38 @@ export async function getRecebimentos(supabase: SupabaseClient, mes: string): Pr
   return linhas.map(mapRecebimento);
 }
 
+/**
+ * Soma de `pagamentos.valor` por mês, para o gráfico de faturamento do
+ * Dashboard — uma única ida ao banco (sem os joins de `getRecebimentos`, que
+ * o gráfico não precisa) em vez de uma chamada por mês. Antes disso, o
+ * Dashboard disparava até 6 `getRecebimentos` (cada um com join em
+ * mensalidades/associados/ingressos/usuarios) só pra somar valores.
+ */
+export async function getFaturamentoPorMes(supabase: SupabaseClient, meses: string[]): Promise<Map<string, number>> {
+  const porMes = new Map<string, number>(meses.map((m) => [m, 0]));
+  if (meses.length === 0) return porMes;
+
+  const ordenados = [...meses].sort();
+  const de = limitesDoMes(ordenados[0]).de;
+  const ate = limitesDoMes(ordenados.at(-1)!).ate;
+
+  const { linhas } = await buscarTodos<Row>((from, to) =>
+    supabase
+      .from("pagamentos")
+      .select("valor, pago_em")
+      .gte("pago_em", `${de}T00:00:00-03:00`)
+      .lt("pago_em", `${ate}T00:00:00-03:00`)
+      .order("pago_em")
+      .range(from, to),
+  );
+
+  for (const row of linhas) {
+    const mes = (row.pago_em as string).slice(0, 7);
+    if (porMes.has(mes)) porMes.set(mes, (porMes.get(mes) ?? 0) + Number(row.valor));
+  }
+  return porMes;
+}
+
 export async function getDespesas(supabase: SupabaseClient): Promise<Despesa[]> {
   const hoje = hojeBR();
   const { data, error } = await supabase
