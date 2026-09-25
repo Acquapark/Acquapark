@@ -10,6 +10,9 @@ public sealed class Configuracao
     public MensagensConfig Mensagens { get; set; } = new();
     public AvancadoConfig Avancado { get; set; } = new();
 
+    public static readonly string[] SentidosValidos =
+        ["Entrada", "EntradaInvertida", "Saida", "SaidaInvertida", "DoisSentidos"];
+
     public static Configuracao Carregar(string caminho)
     {
         if (!File.Exists(caminho))
@@ -25,6 +28,10 @@ public sealed class Configuracao
             ?? throw new InvalidDataException("appsettings.json vazio.");
 
         config.Sistema.Url = config.Sistema.Url.TrimEnd('/');
+        config.Catraca.SentidoLiberacao = config.Catraca.SentidoLiberacao.Trim();
+        if (!SentidosValidos.Contains(config.Catraca.SentidoLiberacao))
+            throw new InvalidDataException(
+                $"Catraca.SentidoLiberacao inválido: \"{config.Catraca.SentidoLiberacao}\". Use um destes: {string.Join(", ", SentidosValidos)}.");
         if (config.Sistema.Url.Contains("SEU_DOMINIO") || config.Sistema.ChaveApi.StartsWith("COLE_AQUI"))
             throw new InvalidDataException("Preencha Sistema.Url e Sistema.ChaveApi no appsettings.json.");
 

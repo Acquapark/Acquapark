@@ -28,7 +28,7 @@ public sealed class CatracaInner
         if (retPorta != EasyInner.RetComandoOk)
             throw new InvalidOperationException(
                 $"Não foi possível abrir a porta {c.Porta} (retorno {retPorta}). Ela pode estar em uso pelo programa da Topdata — feche-o antes.");
-        Log.Info($"Porta {c.Porta} aberta. Aguardando o Inner {_inner}...");
+        Log.Info($"Porta {c.Porta} aberta. Sentido de liberação: {c.SentidoLiberacao}. Aguardando o Inner {_inner}...");
 
         try
         {
