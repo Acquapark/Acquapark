@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Plus, Printer, Search, Ticket as TicketIcon } from "lucide-react";
+import { Lock, Plus, Printer, Search, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -19,7 +19,7 @@ import { CupomManager } from "@/components/bilheteria/CupomManager";
 import { VendaModal } from "@/components/bilheteria/VendaModal";
 import { IngressoQrModal } from "@/components/bilheteria/IngressoQrModal";
 import { getAutoPrint, imprimirIngresso } from "@/lib/print-ingresso";
-import { cancelarIngresso } from "./actions";
+import { cancelarIngresso, excluirIngresso } from "./actions";
 
 const STATUS_OPTIONS: IngressoStatus[] = ["Disponível", "Utilizado", "Cancelado", "Expirado"];
 
@@ -60,6 +60,16 @@ export function BilheteriaClient({
     aplicarPeriodo(hojeBR(), hojeBR());
   }
 
+  // Atualiza a lista sozinha enquanto a aba "Ingressos" está aberta — sem
+  // isso, um ingresso validado na catraca (por um processo totalmente à
+  // parte, fora do Next.js) só aparecia como "Utilizado" depois de sair e
+  // voltar pra essa página.
+  useEffect(() => {
+    if (tab !== "ingressos") return;
+    const interval = setInterval(() => router.refresh(), 5000);
+    return () => clearInterval(interval);
+  }, [tab, router]);
+
   const [vendaOpen, setVendaOpen] = useState(false);
   const [vendaKey, setVendaKey] = useState(0);
   const [qrIngresso, setQrIngresso] = useState<Ingresso | null>(null);
@@ -67,6 +77,8 @@ export function BilheteriaClient({
 
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const [cancelSaving, setCancelSaving] = useState(false);
+  const [excluindoId, setExcluindoId] = useState<string | null>(null);
+  const [excluirSaving, setExcluirSaving] = useState(false);
   const [error, setError] = useState("");
 
   const termo = busca.trim().toLowerCase();
@@ -98,6 +110,19 @@ export function BilheteriaClient({
     const result = await cancelarIngresso(id);
     setCancelSaving(false);
     setCancelandoId(null);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    router.refresh();
+  }
+
+  async function handleConfirmExcluir(id: string) {
+    setExcluirSaving(true);
+    setError("");
+    const result = await excluirIngresso(id);
+    setExcluirSaving(false);
+    setExcluindoId(null);
     if (result.error) {
       setError(result.error);
       return;
@@ -260,6 +285,24 @@ export function BilheteriaClient({
                             Não
                           </button>
                         </div>
+                      ) : excluindoId === i.id ? (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-medium text-danger-600">Excluir venda?</span>
+                          <button
+                            onClick={() => handleConfirmExcluir(i.id)}
+                            disabled={excluirSaving}
+                            className="font-semibold text-danger-600 hover:underline disabled:opacity-50"
+                          >
+                            Sim
+                          </button>
+                          <button
+                            onClick={() => setExcluindoId(null)}
+                            disabled={excluirSaving}
+                            className="text-gray-500 hover:underline"
+                          >
+                            Não
+                          </button>
+                        </div>
                       ) : (
                         <div className="flex gap-1.5">
                           <Button variant="secondary" size="sm" onClick={() => openQr(i)}>
@@ -280,6 +323,17 @@ export function BilheteriaClient({
                               title={caixaAberto ? undefined : "Abra o caixa para cancelar (o estorno sai do caixa)"}
                             >
                               Cancelar
+                            </Button>
+                          )}
+                          {i.status === "Disponível" && pode("ingressos.excluir") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setExcluindoId(i.id)}
+                              title="Apaga a venda de vez, como se nunca tivesse acontecido — só funciona pra vendas de hoje"
+                            >
+                              <Trash2 size={13} />
+                              Excluir
                             </Button>
                           )}
                         </div>

@@ -116,6 +116,7 @@ export const MODULOS: ModuloDef[] = [
           A.visualizar,
           { chave: "criar", rotulo: "Vender" },
           { chave: "cancelar", rotulo: "Cancelar venda" },
+          A.excluir,
           { chave: "imprimir", rotulo: "Reimprimir" },
         ],
       },

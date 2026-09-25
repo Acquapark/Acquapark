@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { RegraReentrada, TipoDescontoCupom } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
-import { hojeBR } from "@/lib/datas-br";
+import { dataBR, hojeBR } from "@/lib/datas-br";
 
 export interface TipoIngressoInput {
   nome: string;
@@ -139,6 +139,47 @@ export async function cancelarIngresso(id: string) {
   const supabase = await createClient();
   const { error } = await supabase.rpc("cancelar_ingresso", { p_ingresso_id: id });
   if (error) return { error: error.message };
+
+  revalidate();
+  revalidatePath("/caixa");
+  return { success: true };
+}
+
+/**
+ * Diferente de `cancelarIngresso` (mantém o registro no histórico como
+ * "Cancelado", exige caixa aberto pro estorno): isto apaga a venda de vez,
+ * como se nunca tivesse acontecido — pra corrigir erro de digitação/venda
+ * por engano, não pra desistência de um cliente. Só em ingressos ainda
+ * "Disponível" (nunca utilizados) e vendidos hoje — depois de usado vira
+ * histórico de acesso (só se cancela), e vendas de dias anteriores já podem
+ * pertencer a um caixa fechado, cujo total é somado a partir de `pagamentos`
+ * na hora (não fica congelado no fechamento) — apagar retroagiria o relatório
+ * daquele dia. Pra excluir venda de dia anterior, cancele em vez de excluir.
+ */
+export async function excluirIngresso(id: string) {
+  const negado = await exigirPermissao("ingressos.excluir");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+
+  const { data: ingresso } = await supabase.from("ingressos").select("status, created_at").eq("id", id).maybeSingle();
+  if (!ingresso) return { error: "Ingresso não encontrado." };
+  if (ingresso.status !== "Disponível") {
+    return { error: "Só é possível excluir ingressos ainda não utilizados. Ingressos usados ou cancelados ficam no histórico." };
+  }
+  if (dataBR(ingresso.created_at as string) !== hojeBR()) {
+    return { error: "Só é possível excluir vendas feitas hoje. Para vendas de dias anteriores, cancele em vez de excluir." };
+  }
+
+  const { error: pagamentoError } = await supabase.from("pagamentos").delete().eq("ingresso_id", id);
+  if (pagamentoError) return { error: pagamentoError.message };
+
+  const { error } = await supabase.from("ingressos").delete().eq("id", id);
+  if (error) {
+    if (error.code === "23503") {
+      return { error: "Este ingresso já tem histórico de acesso vinculado e não pode ser excluído. Cancele em vez de excluir." };
+    }
+    return { error: error.message };
+  }
 
   revalidate();
   revalidatePath("/caixa");
