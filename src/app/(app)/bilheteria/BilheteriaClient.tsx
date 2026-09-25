@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Plus, Printer, Search, Ticket as TicketIcon, Trash2 } from "lucide-react";
+import { Lock, Plus, Printer, RotateCcw, Search, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -19,7 +19,7 @@ import { CupomManager } from "@/components/bilheteria/CupomManager";
 import { VendaModal } from "@/components/bilheteria/VendaModal";
 import { IngressoQrModal } from "@/components/bilheteria/IngressoQrModal";
 import { getAutoPrint, imprimirIngresso } from "@/lib/print-ingresso";
-import { cancelarIngresso, excluirIngresso } from "./actions";
+import { cancelarIngresso, excluirIngresso, reativarIngresso } from "./actions";
 
 const STATUS_OPTIONS: IngressoStatus[] = ["Disponível", "Utilizado", "Cancelado", "Expirado"];
 
@@ -79,6 +79,8 @@ export function BilheteriaClient({
   const [cancelSaving, setCancelSaving] = useState(false);
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [excluirSaving, setExcluirSaving] = useState(false);
+  const [reativandoId, setReativandoId] = useState<string | null>(null);
+  const [reativarSaving, setReativarSaving] = useState(false);
   const [error, setError] = useState("");
 
   const termo = busca.trim().toLowerCase();
@@ -123,6 +125,19 @@ export function BilheteriaClient({
     const result = await excluirIngresso(id);
     setExcluirSaving(false);
     setExcluindoId(null);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    router.refresh();
+  }
+
+  async function handleConfirmReativar(id: string) {
+    setReativarSaving(true);
+    setError("");
+    const result = await reativarIngresso(id);
+    setReativarSaving(false);
+    setReativandoId(null);
     if (result.error) {
       setError(result.error);
       return;
@@ -303,6 +318,24 @@ export function BilheteriaClient({
                             Não
                           </button>
                         </div>
+                      ) : reativandoId === i.id ? (
+                        <div className="flex items-center gap-2 text-xs">
+                          <span className="font-medium text-primary-700">Voltar a Disponível?</span>
+                          <button
+                            onClick={() => handleConfirmReativar(i.id)}
+                            disabled={reativarSaving}
+                            className="font-semibold text-primary-700 hover:underline disabled:opacity-50"
+                          >
+                            Sim
+                          </button>
+                          <button
+                            onClick={() => setReativandoId(null)}
+                            disabled={reativarSaving}
+                            className="text-gray-500 hover:underline"
+                          >
+                            Não
+                          </button>
+                        </div>
                       ) : (
                         <div className="flex gap-1.5">
                           <Button variant="secondary" size="sm" onClick={() => openQr(i)}>
@@ -325,15 +358,26 @@ export function BilheteriaClient({
                               Cancelar
                             </Button>
                           )}
-                          {i.status === "Disponível" && pode("ingressos.excluir") && (
+                          {pode("ingressos.excluir") && (
                             <Button
                               variant="ghost"
                               size="sm"
                               onClick={() => setExcluindoId(i.id)}
-                              title="Apaga a venda de vez, como se nunca tivesse acontecido — só funciona pra vendas de hoje"
+                              title="Apaga a venda de vez, como se nunca tivesse acontecido"
                             >
                               <Trash2 size={13} />
                               Excluir
+                            </Button>
+                          )}
+                          {i.status !== "Disponível" && pode("ingressos.reativar") && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setReativandoId(i.id)}
+                              title="Volta o ingresso pra Disponível, como se não tivesse sido usado/cancelado"
+                            >
+                              <RotateCcw size={13} />
+                              Reativar
                             </Button>
                           )}
                         </div>

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { RegraReentrada, TipoDescontoCupom } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
-import { dataBR, hojeBR } from "@/lib/datas-br";
+import { hojeBR } from "@/lib/datas-br";
 
 export interface TipoIngressoInput {
   nome: string;
@@ -148,41 +148,61 @@ export async function cancelarIngresso(id: string) {
 /**
  * Diferente de `cancelarIngresso` (mantém o registro no histórico como
  * "Cancelado", exige caixa aberto pro estorno): isto apaga a venda de vez,
- * como se nunca tivesse acontecido — pra corrigir erro de digitação/venda
- * por engano, não pra desistência de um cliente. Só em ingressos ainda
- * "Disponível" (nunca utilizados) e vendidos hoje — depois de usado vira
- * histórico de acesso (só se cancela), e vendas de dias anteriores já podem
- * pertencer a um caixa fechado, cujo total é somado a partir de `pagamentos`
- * na hora (não fica congelado no fechamento) — apagar retroagiria o relatório
- * daquele dia. Pra excluir venda de dia anterior, cancele em vez de excluir.
+ * como se nunca tivesse acontecido — inclusive já utilizados, cancelados ou
+ * de dias anteriores. Sem restrição de status/data de propósito: quem tem a
+ * permissão `ingressos.excluir` (só quem o próprio usuário liberar no grupo
+ * de acesso — ver Configurações > Grupos e Permissões) decide quando usar.
+ * Apaga também os acessos vinculados antes do ingresso, pra não esbarrar na
+ * FK (um ingresso "Utilizado" sempre tem pelo menos um acesso registrado).
  */
 export async function excluirIngresso(id: string) {
   const negado = await exigirPermissao("ingressos.excluir");
   if (negado) return { error: negado.error };
   const supabase = await createClient();
 
-  const { data: ingresso } = await supabase.from("ingressos").select("status, created_at").eq("id", id).maybeSingle();
+  const { data: ingresso } = await supabase.from("ingressos").select("id").eq("id", id).maybeSingle();
   if (!ingresso) return { error: "Ingresso não encontrado." };
-  if (ingresso.status !== "Disponível") {
-    return { error: "Só é possível excluir ingressos ainda não utilizados. Ingressos usados ou cancelados ficam no histórico." };
-  }
-  if (dataBR(ingresso.created_at as string) !== hojeBR()) {
-    return { error: "Só é possível excluir vendas feitas hoje. Para vendas de dias anteriores, cancele em vez de excluir." };
-  }
+
+  const { error: acessoError } = await supabase.from("acessos").delete().eq("ingresso_id", id);
+  if (acessoError) return { error: acessoError.message };
 
   const { error: pagamentoError } = await supabase.from("pagamentos").delete().eq("ingresso_id", id);
   if (pagamentoError) return { error: pagamentoError.message };
 
   const { error } = await supabase.from("ingressos").delete().eq("id", id);
-  if (error) {
-    if (error.code === "23503") {
-      return { error: "Este ingresso já tem histórico de acesso vinculado e não pode ser excluído. Cancele em vez de excluir." };
-    }
-    return { error: error.message };
-  }
+  if (error) return { error: error.message };
 
   revalidate();
   revalidatePath("/caixa");
+  revalidatePath("/controle-acesso");
+  return { success: true };
+}
+
+/**
+ * Volta um ingresso já utilizado (ou cancelado/expirado) pra "Disponível",
+ * como se nunca tivesse sido validado na catraca — pra testes, ou quando o
+ * pagamento de uma passagem não se confirmou e precisa liberar a entrada de
+ * novo sem gerar outro ingresso. Apaga os acessos "Autorizado" vinculados
+ * (senão o painel de Controle de Acesso continuaria contando uma entrada que
+ * tecnicamente não aconteceu mais).
+ */
+export async function reativarIngresso(id: string) {
+  const negado = await exigirPermissao("ingressos.reativar");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+
+  const { data: ingresso } = await supabase.from("ingressos").select("status").eq("id", id).maybeSingle();
+  if (!ingresso) return { error: "Ingresso não encontrado." };
+  if (ingresso.status === "Disponível") return { error: "Este ingresso já está disponível." };
+
+  const { error: acessoError } = await supabase.from("acessos").delete().eq("ingresso_id", id);
+  if (acessoError) return { error: acessoError.message };
+
+  const { error } = await supabase.from("ingressos").update({ status: "Disponível", utilizado_em: null }).eq("id", id);
+  if (error) return { error: error.message };
+
+  revalidate();
+  revalidatePath("/controle-acesso");
   return { success: true };
 }
 
