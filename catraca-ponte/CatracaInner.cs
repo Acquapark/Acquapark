@@ -184,7 +184,28 @@ public sealed class CatracaInner
             _ => () => EasyInner.LiberarCatracaEntrada(_inner),
         };
         if (!await RepetirAsync(liberar, "LiberarCatraca", parar))
+        {
             Log.Erro("O Inner não aceitou o comando de liberar o giro.");
+            return;
+        }
+        Bipar();
+    }
+
+    /// <summary>
+    /// O Inner só apita sozinho com alguns comandos de liberar (com
+    /// "DoisSentidos", por exemplo, fica mudo) — o bipe explícito deixa o
+    /// retorno igual em qualquer sentido.
+    /// </summary>
+    private void Bipar()
+    {
+        try
+        {
+            EasyInner.AcionarBipCurto(_inner);
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // DLL sem essa função: libera do mesmo jeito, só sem o bipe.
+        }
     }
 
     private static void Verificar(int retorno, string funcao)

@@ -93,5 +93,8 @@ internal static class EasyInner
     public static extern byte LiberarCatracaDoisSentidos(int inner);
 
     [DllImport(Dll, CallingConvention = CallingConvention.StdCall)]
+    public static extern byte AcionarBipCurto(int inner);
+
+    [DllImport(Dll, CallingConvention = CallingConvention.StdCall)]
     public static extern byte AcionarBipLongo(int inner);
 }
