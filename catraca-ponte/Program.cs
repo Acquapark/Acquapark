@@ -52,7 +52,7 @@ catch (EntryPointNotFoundException ex)
 }
 catch (InvalidOperationException ex)
 {
-    Log.Erro(ex.Message + " A porta pode estar em uso pelo programa da Topdata — feche-o antes.");
+    Log.Erro(ex.Message);
 }
 Console.WriteLine("Pressione Enter para sair.");
 Console.ReadLine();

@@ -24,7 +24,10 @@ public sealed class CatracaInner
     {
         var c = _config.Catraca;
         Verificar(EasyInner.DefinirTipoConexao(c.TipoConexao), "DefinirTipoConexao");
-        Verificar(EasyInner.AbrirPortaComunicacao(c.Porta), $"AbrirPortaComunicacao({c.Porta})");
+        var retPorta = EasyInner.AbrirPortaComunicacao(c.Porta);
+        if (retPorta != EasyInner.RetComandoOk)
+            throw new InvalidOperationException(
+                $"Não foi possível abrir a porta {c.Porta} (retorno {retPorta}). Ela pode estar em uso pelo programa da Topdata — feche-o antes.");
         Log.Info($"Porta {c.Porta} aberta. Aguardando o Inner {_inner}...");
 
         try
@@ -32,7 +35,12 @@ public sealed class CatracaInner
             while (!parar.IsCancellationRequested)
             {
                 await AguardarConexaoAsync(parar);
-                Configurar();
+                if (!await ConfigurarAsync(parar))
+                {
+                    Log.Erro($"O Inner {_inner} não aceitou a configuração. Tentando de novo em 5 s...");
+                    await Task.Delay(5000, parar);
+                    continue;
+                }
                 await AtenderAsync(parar);
                 Log.Erro($"Conexão com o Inner {_inner} perdida. Tentando reconectar...");
             }
@@ -54,7 +62,7 @@ public sealed class CatracaInner
         Log.Info($"Inner {_inner} conectado.");
     }
 
-    private void Configurar()
+    private async Task<bool> ConfigurarAsync(CancellationToken parar)
     {
         var a = _config.Avancado;
         if (a.EnviarConfiguracao)
@@ -68,21 +76,46 @@ public sealed class CatracaInner
             EasyInner.ConfigurarLeitor2(a.OperacaoLeitor2);
             EasyInner.DefinirQuantidadeDigitosCartao((byte)_config.Catraca.DigitosCodigo);
             EasyInner.HabilitarTeclado(0, 0);
-            Verificar(EasyInner.EnviarConfiguracoes(_inner), "EnviarConfiguracoes");
+            if (!await RepetirAsync(() => EasyInner.EnviarConfiguracoes(_inner), "EnviarConfiguracoes", parar))
+                return false;
             Log.Info("Configuração de modo online enviada ao Inner.");
         }
-        Rearmar();
+        await RearmarAsync(parar);
+        return true;
+    }
+
+    /// <summary>
+    /// Os comandos da EasyInner podem falhar na primeira tentativa (o Inner
+    /// ainda ocupado com o comando anterior, pacote TCP perdido) — os exemplos
+    /// da Topdata repetem por alguns segundos antes de desistir; aqui também.
+    /// </summary>
+    private static async Task<bool> RepetirAsync(Func<byte> comando, string nome, CancellationToken parar, int timeoutMs = 3000)
+    {
+        var inicio = Environment.TickCount64;
+        byte ret;
+        while ((ret = comando()) != EasyInner.RetComandoOk)
+        {
+            if (Environment.TickCount64 - inicio >= timeoutMs)
+            {
+                Log.Erro($"{nome} falhou (retorno {ret}).");
+                return false;
+            }
+            await Task.Delay(100, parar);
+        }
+        return true;
     }
 
     /// <summary>
     /// Volta o visor à mensagem padrão e reabilita a leitura — em modo online o
     /// Inner para de aceitar leituras depois de cada evento até ser rearmado.
     /// </summary>
-    private void Rearmar()
+    private async Task RearmarAsync(CancellationToken parar)
     {
         var a = _config.Avancado;
-        EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, _config.Mensagens.Padrao);
-        EasyInner.EnviarFormasEntradasOnLine(_inner, 0, 0, a.FormaEntrada, a.TempoTeclado, a.PosicaoCursorTeclado);
+        await RepetirAsync(() => EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, _config.Mensagens.Padrao), "EnviarMensagemPadraoOnLine", parar);
+        await RepetirAsync(
+            () => EasyInner.EnviarFormasEntradasOnLine(_inner, 0, 0, a.FormaEntrada, a.TempoTeclado, a.PosicaoCursorTeclado),
+            "EnviarFormasEntradasOnLine", parar);
     }
 
     private async Task AtenderAsync(CancellationToken parar)
@@ -105,7 +138,7 @@ public sealed class CatracaInner
                 else
                     // Evento sem código: giro concluído ou tempo de liberação esgotado.
                     Log.Info($"Evento do Inner (origem {origem}, complemento {complemento}).");
-                Rearmar();
+                await RearmarAsync(parar);
                 ultimoPing = Environment.TickCount64;
                 continue;
             }
@@ -129,7 +162,7 @@ public sealed class CatracaInner
         {
             Log.Info($"LIBERADO  {codigo}");
             EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, _config.Mensagens.Liberado);
-            Liberar();
+            await LiberarAsync(parar);
             return;
         }
 
@@ -140,18 +173,18 @@ public sealed class CatracaInner
         await Task.Delay(_config.Catraca.TempoMensagemNegadoMs, parar);
     }
 
-    private void Liberar()
+    private async Task LiberarAsync(CancellationToken parar)
     {
-        var ret = _config.Catraca.SentidoLiberacao switch
+        Func<byte> liberar = _config.Catraca.SentidoLiberacao switch
         {
-            "EntradaInvertida" => EasyInner.LiberarCatracaEntradaInvertida(_inner),
-            "Saida" => EasyInner.LiberarCatracaSaida(_inner),
-            "SaidaInvertida" => EasyInner.LiberarCatracaSaidaInvertida(_inner),
-            "DoisSentidos" => EasyInner.LiberarCatracaDoisSentidos(_inner),
-            _ => EasyInner.LiberarCatracaEntrada(_inner),
+            "EntradaInvertida" => () => EasyInner.LiberarCatracaEntradaInvertida(_inner),
+            "Saida" => () => EasyInner.LiberarCatracaSaida(_inner),
+            "SaidaInvertida" => () => EasyInner.LiberarCatracaSaidaInvertida(_inner),
+            "DoisSentidos" => () => EasyInner.LiberarCatracaDoisSentidos(_inner),
+            _ => () => EasyInner.LiberarCatracaEntrada(_inner),
         };
-        if (ret != EasyInner.RetComandoOk)
-            Log.Erro($"O Inner não aceitou o comando de liberar (retorno {ret}).");
+        if (!await RepetirAsync(liberar, "LiberarCatraca", parar))
+            Log.Erro("O Inner não aceitou o comando de liberar o giro.");
     }
 
     private static void Verificar(int retorno, string funcao)
