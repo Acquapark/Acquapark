@@ -36,7 +36,7 @@ public sealed class SistemaConfig
 {
     public string Url { get; set; } = "";
     public string ChaveApi { get; set; } = "";
-    public int TimeoutMs { get; set; } = 3000;
+    public int TimeoutMs { get; set; } = 8000;
 }
 
 public sealed class CatracaConfig
