@@ -1,0 +1,6 @@
+bin/
+obj/
+publicado/
+logs/
+# DLL proprietária da Topdata (vem no SDK EasyInner) — não versionar.
+EasyInner.dll
