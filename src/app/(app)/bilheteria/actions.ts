@@ -12,6 +12,7 @@ export interface TipoIngressoInput {
   valor: number;
   validade: string;
   regraReentrada: RegraReentrada;
+  semExpiracao: boolean;
   ativo: boolean;
 }
 
@@ -37,8 +38,9 @@ export async function createTipoIngresso(input: TipoIngressoInput) {
     nome: input.nome.trim(),
     descricao: input.descricao.trim() || null,
     valor: input.valor,
-    validade: input.validade.trim() || "1 dia",
-    regra_reentrada: input.regraReentrada,
+    validade: input.semExpiracao ? "Sem expiração" : input.validade.trim() || "1 dia",
+    regra_reentrada: input.semExpiracao ? "ilimitado" : input.regraReentrada,
+    sem_expiracao: input.semExpiracao,
     ativo: input.ativo,
   });
   if (error) return { error: error.message };
@@ -59,8 +61,9 @@ export async function updateTipoIngresso(id: string, input: TipoIngressoInput) {
       nome: input.nome.trim(),
       descricao: input.descricao.trim() || null,
       valor: input.valor,
-      validade: input.validade.trim() || "1 dia",
-      regra_reentrada: input.regraReentrada,
+      validade: input.semExpiracao ? "Sem expiração" : input.validade.trim() || "1 dia",
+      regra_reentrada: input.semExpiracao ? "ilimitado" : input.regraReentrada,
+      sem_expiracao: input.semExpiracao,
       ativo: input.ativo,
     })
     .eq("id", id);
@@ -96,15 +99,30 @@ export async function excluirTipoIngresso(id: string) {
 
 const FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de débito", "Cartão de crédito"];
 
+export interface IngressoVendido {
+  id: string;
+  numero: string;
+  codigo: string;
+  valor: number;
+  valorDesconto: number;
+  dataUtilizacao: string;
+  semExpiracao: boolean;
+}
+
 export async function venderIngresso(params: {
   tipoId: string;
   comprador: string;
   dataUtilizacao: string;
   formaPagamento: string;
   cupomCodigo?: string;
-}) {
+  quantidade?: number;
+}): Promise<{ error: string } | { ingressos: IngressoVendido[] }> {
   const negado = await exigirPermissao("ingressos.criar");
   if (negado) return { error: negado.error };
+  const quantidade = params.quantidade ?? 1;
+  if (!Number.isInteger(quantidade) || quantidade < 1 || quantidade > 50) {
+    return { error: "A quantidade de ingressos deve ser entre 1 e 50." };
+  }
   if (!params.tipoId) return { error: "Selecione o tipo de ingresso." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(params.dataUtilizacao)) return { error: "Informe a data de utilização." };
   if (!FORMAS_PAGAMENTO.includes(params.formaPagamento)) return { error: "Selecione a forma de pagamento." };
@@ -116,20 +134,33 @@ export async function venderIngresso(params: {
     p_data_utilizacao: params.dataUtilizacao,
     p_forma_pagamento: params.formaPagamento,
     p_cupom_codigo: params.cupomCodigo?.trim() || null,
+    p_quantidade: quantidade,
   });
-  if (error || !data) return { error: error?.message ?? "Não foi possível emitir o ingresso." };
+  if (error || !Array.isArray(data) || data.length === 0) {
+    return { error: error?.message ?? "Não foi possível emitir o ingresso." };
+  }
 
   revalidate();
   revalidatePath("/caixa");
-  const ingresso = data as { id: string; numero: string; codigo: string; valor: number; valor_desconto: number };
+  const linhas = data as {
+    id: string;
+    numero: string;
+    codigo: string;
+    valor: number;
+    valor_desconto: number;
+    data_utilizacao: string;
+    sem_expiracao: boolean;
+  }[];
   return {
-    ingresso: {
-      id: ingresso.id,
-      numero: ingresso.numero,
-      codigo: ingresso.codigo,
-      valor: Number(ingresso.valor),
-      valorDesconto: Number(ingresso.valor_desconto),
-    },
+    ingressos: linhas.map((l) => ({
+      id: l.id,
+      numero: l.numero,
+      codigo: l.codigo,
+      valor: Number(l.valor),
+      valorDesconto: Number(l.valor_desconto),
+      dataUtilizacao: l.data_utilizacao,
+      semExpiracao: l.sem_expiracao,
+    })),
   };
 }
 

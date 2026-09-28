@@ -12,6 +12,7 @@ function mapTipo(row: Row): TipoIngresso {
     valor: Number(row.valor),
     validade: (row.validade as string) ?? "1 dia",
     regraReentrada: ((row.regra_reentrada as RegraReentrada) ?? "unica"),
+    semExpiracao: (row.sem_expiracao as boolean) ?? false,
     ativo: (row.ativo as boolean) ?? true,
   };
 }
@@ -23,7 +24,7 @@ export async function getTiposIngresso(supabase: SupabaseClient): Promise<TipoIn
 }
 
 const INGRESSO_SELECT =
-  "id, numero, codigo, comprador_nome, data_utilizacao, valor, valor_desconto, status, forma_pagamento, tipos_ingresso ( nome ), cupons_desconto ( codigo )";
+  "id, numero, codigo, comprador_nome, data_utilizacao, valor, valor_desconto, status, forma_pagamento, sem_expiracao, tipos_ingresso ( nome ), cupons_desconto ( codigo )";
 
 function mapIngresso(row: Row): Ingresso {
   return {
@@ -33,6 +34,7 @@ function mapIngresso(row: Row): Ingresso {
     tipo: ((row.tipos_ingresso as Row | null)?.nome as string) ?? "—",
     comprador: (row.comprador_nome as string) ?? "—",
     dataUtilizacao: row.data_utilizacao as string,
+    semExpiracao: (row.sem_expiracao as boolean) ?? false,
     valor: Number(row.valor),
     status: row.status as Ingresso["status"],
     formaPagamento: (row.forma_pagamento as string) ?? undefined,

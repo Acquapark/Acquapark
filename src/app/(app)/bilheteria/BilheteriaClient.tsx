@@ -18,7 +18,8 @@ import { TiposIngressoManager } from "@/components/bilheteria/TiposIngressoManag
 import { CupomManager } from "@/components/bilheteria/CupomManager";
 import { VendaModal } from "@/components/bilheteria/VendaModal";
 import { IngressoQrModal } from "@/components/bilheteria/IngressoQrModal";
-import { getAutoPrint, imprimirIngresso } from "@/lib/print-ingresso";
+import { IngressosLoteModal } from "@/components/bilheteria/IngressosLoteModal";
+import { getAutoPrint, imprimirIngresso, imprimirIngressos } from "@/lib/print-ingresso";
 import { cancelarIngresso, excluirIngresso, reativarIngresso } from "./actions";
 
 const STATUS_OPTIONS: IngressoStatus[] = ["Disponível", "Utilizado", "Cancelado", "Expirado"];
@@ -74,6 +75,7 @@ export function BilheteriaClient({
   const [vendaKey, setVendaKey] = useState(0);
   const [qrIngresso, setQrIngresso] = useState<Ingresso | null>(null);
   const [qrTitle, setQrTitle] = useState("QR Code do ingresso");
+  const [lote, setLote] = useState<Ingresso[]>([]);
 
   const [cancelandoId, setCancelandoId] = useState<string | null>(null);
   const [cancelSaving, setCancelSaving] = useState(false);
@@ -95,10 +97,14 @@ export function BilheteriaClient({
     setVendaOpen(true);
   }
 
-  function handleVendido(ingresso: Ingresso) {
-    setQrTitle("Ingresso emitido com sucesso");
-    setQrIngresso(ingresso);
-    if (getAutoPrint()) imprimirIngresso(ingresso.id);
+  function handleVendido(emitidos: Ingresso[]) {
+    if (emitidos.length === 1) {
+      setQrTitle("Ingresso emitido com sucesso");
+      setQrIngresso(emitidos[0]);
+    } else {
+      setLote(emitidos);
+    }
+    if (getAutoPrint()) imprimirIngressos(emitidos.map((i) => i.id));
   }
 
   function openQr(ingresso: Ingresso) {
@@ -266,7 +272,7 @@ export function BilheteriaClient({
                     </Td>
                     <Td>{i.tipo}</Td>
                     <Td>{i.comprador}</Td>
-                    <Td>{formatDate(i.dataUtilizacao)}</Td>
+                    <Td>{i.semExpiracao ? "Sem expiração" : formatDate(i.dataUtilizacao)}</Td>
                     <Td>{formatCurrency(i.valor)}</Td>
                     <Td>
                       {i.cupomCodigo ? (
@@ -400,6 +406,7 @@ export function BilheteriaClient({
       </Card>
 
       <VendaModal key={vendaKey} open={vendaOpen} onClose={() => setVendaOpen(false)} tipos={tipos} onVendido={handleVendido} />
+      <IngressosLoteModal open={lote.length > 0} onClose={() => setLote([])} ingressos={lote} />
       <IngressoQrModal open={!!qrIngresso} onClose={() => setQrIngresso(null)} ingresso={qrIngresso} title={qrTitle} />
     </div>
   );

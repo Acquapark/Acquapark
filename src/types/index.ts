@@ -109,6 +109,8 @@ export interface TipoIngresso {
   valor: number;
   validade: string;
   regraReentrada: RegraReentrada;
+  /** Ingressos deste tipo nunca vencem e a catraca sempre libera (não são consumidos). */
+  semExpiracao: boolean;
   ativo: boolean;
 }
 
@@ -117,6 +119,7 @@ export interface Ingresso {
   numero: string;
   tipo: string;
   dataUtilizacao: string;
+  semExpiracao?: boolean;
   /** Valor final cobrado — já com o desconto do cupom aplicado, se houver. */
   valor: number;
   status: IngressoStatus;

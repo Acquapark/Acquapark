@@ -42,10 +42,20 @@ export function setAutoPrint(value: boolean) {
  * quem chama continua na mesma tela e o iframe se remove quando a impressão termina.
  */
 export function imprimirIngresso(ingressoId: string) {
+  imprimirIngressos([ingressoId]);
+}
+
+/** Vários ingressos numa só impressão (um cupom por página, cortando entre eles). */
+export function imprimirIngressos(ingressoIds: string[]) {
+  if (ingressoIds.length === 0) return;
   const iframe = document.createElement("iframe");
   iframe.setAttribute("aria-hidden", "true");
   iframe.style.cssText = "position:fixed;left:-10000px;top:0;width:340px;height:800px;border:0;";
-  iframe.src = `/imprimir/ingresso/${ingressoId}?w=${getPaperWidth()}&auto=1`;
+  const w = getPaperWidth();
+  iframe.src =
+    ingressoIds.length === 1
+      ? `/imprimir/ingresso/${ingressoIds[0]}?w=${w}&auto=1`
+      : `/imprimir/ingresso/lote?ids=${ingressoIds.join(",")}&w=${w}&auto=1`;
 
   const remover = () => {
     window.removeEventListener("message", onMessage);

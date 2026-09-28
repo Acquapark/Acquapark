@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Tag, X } from "lucide-react";
+import { Infinity as InfinityIcon, Minus, Plus, Tag, X } from "lucide-react";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Label, Input, Select } from "@/components/ui/Field";
@@ -18,6 +18,7 @@ import {
 } from "@/lib/print-ingresso";
 
 const FORMAS_PAGAMENTO = ["Dinheiro", "Pix", "Cartão de débito", "Cartão de crédito"];
+const MAX_QUANTIDADE = 50;
 
 function hojeBR() {
   return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
@@ -38,12 +39,13 @@ export function VendaModal({
   open: boolean;
   onClose: () => void;
   tipos: TipoIngresso[];
-  onVendido: (ingresso: Ingresso) => void;
+  onVendido: (ingressos: Ingresso[]) => void;
 }) {
   const router = useRouter();
   const tiposAtivos = tipos.filter((t) => t.ativo);
   const [tipoId, setTipoId] = useState("");
   const [comprador, setComprador] = useState("");
+  const [quantidade, setQuantidade] = useState(1);
   const [dataUtilizacao, setDataUtilizacao] = useState(hojeBR());
   const [forma, setForma] = useState("");
   const [saving, setSaving] = useState(false);
@@ -62,6 +64,10 @@ export function VendaModal({
   }, []);
 
   const tipo = tiposAtivos.find((t) => t.id === tipoId);
+
+  function alterarQuantidade(valor: number) {
+    setQuantidade(Math.min(MAX_QUANTIDADE, Math.max(1, Math.floor(valor) || 1)));
+  }
 
   function selecionarTipo(id: string) {
     setTipoId(id);
@@ -103,30 +109,35 @@ export function VendaModal({
       dataUtilizacao,
       formaPagamento: forma,
       cupomCodigo: cupomAplicado?.codigo,
+      quantidade,
     });
     setSaving(false);
-    if (result.error || !result.ingresso) {
-      setError(result.error ?? "Não foi possível emitir o ingresso.");
+    if ("error" in result) {
+      setError(result.error);
       return;
     }
     router.refresh();
-    onVendido({
-      id: result.ingresso.id,
-      numero: result.ingresso.numero,
-      codigo: result.ingresso.codigo,
-      tipo: tipo.nome,
-      comprador: comprador.trim() || "—",
-      dataUtilizacao,
-      valor: result.ingresso.valor,
-      status: "Disponível",
-      formaPagamento: forma,
-      cupomCodigo: cupomAplicado?.codigo,
-      valorDesconto: result.ingresso.valorDesconto || undefined,
-    });
+    onVendido(
+      result.ingressos.map((i) => ({
+        id: i.id,
+        numero: i.numero,
+        codigo: i.codigo,
+        tipo: tipo.nome,
+        comprador: comprador.trim() || "—",
+        dataUtilizacao: i.dataUtilizacao,
+        semExpiracao: i.semExpiracao,
+        valor: i.valor,
+        status: "Disponível",
+        formaPagamento: forma,
+        cupomCodigo: cupomAplicado?.codigo,
+        valorDesconto: i.valorDesconto || undefined,
+      })),
+    );
     onClose();
   }
 
-  const totalFinal = cupomAplicado ? cupomAplicado.valorFinal : (tipo?.valor ?? 0);
+  const valorUnitario = cupomAplicado ? cupomAplicado.valorFinal : (tipo?.valor ?? 0);
+  const totalFinal = valorUnitario * quantidade;
 
   return (
     <Modal open={open} onClose={onClose} size="md">
@@ -161,15 +172,59 @@ export function VendaModal({
               </div>
             </div>
 
-            <div>
-              <Label>Nome do comprador</Label>
-              <Input value={comprador} onChange={(e) => setComprador(e.target.value)} placeholder="Opcional" />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Nome do comprador</Label>
+                <Input value={comprador} onChange={(e) => setComprador(e.target.value)} placeholder="Opcional" />
+              </div>
+              <div>
+                <Label required>Quantidade de ingressos</Label>
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="secondary"
+                    onClick={() => alterarQuantidade(quantidade - 1)}
+                    disabled={quantidade <= 1}
+                    aria-label="Diminuir quantidade"
+                  >
+                    <Minus size={14} />
+                  </Button>
+                  <Input
+                    type="number"
+                    min={1}
+                    max={MAX_QUANTIDADE}
+                    value={quantidade}
+                    onChange={(e) => alterarQuantidade(Number(e.target.value))}
+                    className="text-center"
+                    aria-label="Quantidade de ingressos"
+                  />
+                  <Button
+                    variant="secondary"
+                    onClick={() => alterarQuantidade(quantidade + 1)}
+                    disabled={quantidade >= MAX_QUANTIDADE}
+                    aria-label="Aumentar quantidade"
+                  >
+                    <Plus size={14} />
+                  </Button>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label required>Data de utilização</Label>
-                <Input type="date" min={hojeBR()} value={dataUtilizacao} onChange={(e) => setDataUtilizacao(e.target.value)} />
+                {tipo?.semExpiracao ? (
+                  <>
+                    <Label>Validade</Label>
+                    <div className="flex h-9 items-center gap-1.5 rounded-[4px] border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                      <InfinityIcon size={14} />
+                      Sem expiração
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <Label required>Data de utilização</Label>
+                    <Input type="date" min={hojeBR()} value={dataUtilizacao} onChange={(e) => setDataUtilizacao(e.target.value)} />
+                  </>
+                )}
               </div>
               <div>
                 <Label required>Forma de pagamento</Label>
@@ -218,10 +273,17 @@ export function VendaModal({
             </div>
 
             <div className="flex items-center justify-between rounded-[6px] border border-gray-200 bg-gray-50 px-4 py-3">
-              <span className="text-sm text-gray-600">Total a receber</span>
+              <span className="text-sm text-gray-600">
+                Total a receber
+                {quantidade > 1 && (
+                  <span className="block text-[11px] text-gray-400">
+                    {quantidade} × {formatCurrency(valorUnitario)}
+                  </span>
+                )}
+              </span>
               <span className="flex items-baseline gap-2">
                 {cupomAplicado && (
-                  <span className="text-xs text-gray-400 line-through">{formatCurrency(tipo?.valor ?? 0)}</span>
+                  <span className="text-xs text-gray-400 line-through">{formatCurrency((tipo?.valor ?? 0) * quantidade)}</span>
                 )}
                 <span className="text-lg font-semibold text-gray-900">{formatCurrency(totalFinal)}</span>
               </span>
@@ -270,7 +332,7 @@ export function VendaModal({
         </Button>
         {tiposAtivos.length > 0 && (
           <Button onClick={handleConfirmar} disabled={saving}>
-            {saving ? "Emitindo..." : "Confirmar recebimento e emitir"}
+            {saving ? "Emitindo..." : quantidade > 1 ? `Confirmar recebimento e emitir ${quantidade} ingressos` : "Confirmar recebimento e emitir"}
           </Button>
         )}
       </ModalFooter>

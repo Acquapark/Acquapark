@@ -13,6 +13,7 @@ export interface TicketData {
   valor: number;
   formaPagamento: string | null;
   regraReentrada: "unica" | "reentrada" | "ilimitado";
+  semExpiracao: boolean;
   emitidoEm: string;
 }
 
@@ -23,13 +24,13 @@ const REGRA_TEXTO: Record<TicketData["regraReentrada"], string> = {
 };
 
 export function TicketPrint({
-  ticket,
+  tickets,
   empresaNome,
   empresaCnpj,
   width,
   auto,
 }: {
-  ticket: TicketData;
+  tickets: TicketData[];
   empresaNome: string;
   empresaCnpj: string;
   width: "80" | "58";
@@ -66,61 +67,70 @@ export function TicketPrint({
         </button>
       </div>
 
-      <div
-        className="mx-auto bg-white p-0 text-black shadow-sm print:shadow-none"
-        style={{ width: `${larguraMm}mm`, fontFamily: "Arial, Helvetica, sans-serif" }}
-      >
-        <div style={{ padding: "3mm 2mm 12mm", textAlign: "center" }}>
-          <p style={{ fontSize: "15px", fontWeight: 700, textTransform: "uppercase", lineHeight: 1.2 }}>{empresaNome}</p>
-          {empresaCnpj && <p style={{ fontSize: "10px" }}>CNPJ {empresaCnpj}</p>}
+      {tickets.map((ticket, indice) => (
+        <div
+          key={ticket.numero}
+          className="mx-auto mb-4 bg-white p-0 text-black shadow-sm print:mb-0 print:shadow-none"
+          style={{
+            width: `${larguraMm}mm`,
+            fontFamily: "Arial, Helvetica, sans-serif",
+            breakAfter: indice < tickets.length - 1 ? "page" : "auto",
+          }}
+        >
+          <div style={{ padding: "3mm 2mm 12mm", textAlign: "center" }}>
+            <p style={{ fontSize: "15px", fontWeight: 700, textTransform: "uppercase", lineHeight: 1.2 }}>{empresaNome}</p>
+            {empresaCnpj && <p style={{ fontSize: "10px" }}>CNPJ {empresaCnpj}</p>}
 
-          <div style={{ borderTop: "1px dashed #000", margin: "3mm 0" }} />
+            <div style={{ borderTop: "1px dashed #000", margin: "3mm 0" }} />
 
-          <p style={{ fontSize: "11px", letterSpacing: "1px" }}>INGRESSO</p>
-          <p style={{ fontSize: "16px", fontWeight: 700, lineHeight: 1.2, margin: "1mm 0 3mm" }}>{ticket.tipo}</p>
+            <p style={{ fontSize: "11px", letterSpacing: "1px" }}>INGRESSO</p>
+            <p style={{ fontSize: "16px", fontWeight: 700, lineHeight: 1.2, margin: "1mm 0 3mm" }}>{ticket.tipo}</p>
 
-          <div style={{ display: "flex", justifyContent: "center" }}>
-            <QRCodeSVG
-              value={ticket.codigo}
-              size={200}
-              level="M"
-              marginSize={0}
-              style={{ width: `${qrMm}mm`, height: `${qrMm}mm` }}
-            />
-          </div>
-
-          <p style={{ fontSize: "15px", fontWeight: 700, margin: "3mm 0 1mm" }}>{ticket.numero}</p>
-          <p style={{ fontSize: "12px" }}>{ticket.comprador}</p>
-
-          <div style={{ borderTop: "1px dashed #000", margin: "3mm 0" }} />
-
-          <div style={{ fontSize: "12px", textAlign: "left", lineHeight: 1.6 }}>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>Válido em</span>
-              <strong>{formatDate(ticket.dataUtilizacao)}</strong>
+            <div style={{ display: "flex", justifyContent: "center" }}>
+              <QRCodeSVG
+                value={ticket.codigo}
+                size={200}
+                level="M"
+                marginSize={0}
+                style={{ width: `${qrMm}mm`, height: `${qrMm}mm` }}
+              />
             </div>
-            <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <span>Valor</span>
-              <strong>{formatCurrency(ticket.valor)}</strong>
-            </div>
-            {ticket.formaPagamento && (
+
+            <p style={{ fontSize: "15px", fontWeight: 700, margin: "3mm 0 1mm" }}>{ticket.numero}</p>
+            <p style={{ fontSize: "12px" }}>{ticket.comprador}</p>
+
+            <div style={{ borderTop: "1px dashed #000", margin: "3mm 0" }} />
+
+            <div style={{ fontSize: "12px", textAlign: "left", lineHeight: 1.6 }}>
               <div style={{ display: "flex", justifyContent: "space-between" }}>
-                <span>Pagamento</span>
-                <span>{ticket.formaPagamento}</span>
+                <span>{ticket.semExpiracao ? "Validade" : "Válido em"}</span>
+                <strong>{ticket.semExpiracao ? "Sem expiração" : formatDate(ticket.dataUtilizacao)}</strong>
               </div>
-            )}
+              <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <span>Valor</span>
+                <strong>{formatCurrency(ticket.valor)}</strong>
+              </div>
+              {ticket.formaPagamento && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}>
+                  <span>Pagamento</span>
+                  <span>{ticket.formaPagamento}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ borderTop: "1px dashed #000", margin: "3mm 0" }} />
+
+            <p style={{ fontSize: "10px", lineHeight: 1.4 }}>
+              Apresente este QR Code na catraca.
+              <br />
+              {ticket.semExpiracao
+                ? "Acesso sempre liberado, sem data de validade."
+                : `${REGRA_TEXTO[ticket.regraReentrada]} Válido somente na data indicada.`}
+            </p>
+            <p style={{ fontSize: "9px", marginTop: "2mm" }}>Emitido em {formatDateTime(ticket.emitidoEm)}</p>
           </div>
-
-          <div style={{ borderTop: "1px dashed #000", margin: "3mm 0" }} />
-
-          <p style={{ fontSize: "10px", lineHeight: 1.4 }}>
-            Apresente este QR Code na catraca.
-            <br />
-            {REGRA_TEXTO[ticket.regraReentrada]} Válido somente na data indicada.
-          </p>
-          <p style={{ fontSize: "9px", marginTop: "2mm" }}>Emitido em {formatDateTime(ticket.emitidoEm)}</p>
         </div>
-      </div>
+      ))}
     </div>
   );
 }

@@ -100,8 +100,8 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
               <Td className="font-medium text-gray-800">{t.nome}</Td>
               <Td className="max-w-xs whitespace-normal text-gray-500">{t.descricao || "—"}</Td>
               <Td>{formatCurrency(t.valor)}</Td>
-              <Td>{t.validade}</Td>
-              <Td>{REGRA_REENTRADA_LABEL[t.regraReentrada]}</Td>
+              <Td>{t.semExpiracao ? "Sem expiração" : t.validade}</Td>
+              <Td>{t.semExpiracao ? "Sempre liberado" : REGRA_REENTRADA_LABEL[t.regraReentrada]}</Td>
               <Td>
                 <Badge tone={t.ativo ? "success" : "neutral"}>{t.ativo ? "Ativo" : "Inativo"}</Badge>
               </Td>

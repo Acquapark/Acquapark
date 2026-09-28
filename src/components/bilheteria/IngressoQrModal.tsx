@@ -58,8 +58,8 @@ export function IngressoQrModal({
                 <span className="text-gray-800">{ingresso.comprador}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Válido em</span>
-                <span className="text-gray-800">{formatDate(ingresso.dataUtilizacao)}</span>
+                <span className="text-gray-500">{ingresso.semExpiracao ? "Validade" : "Válido em"}</span>
+                <span className="text-gray-800">{ingresso.semExpiracao ? "Sem expiração" : formatDate(ingresso.dataUtilizacao)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Valor</span>

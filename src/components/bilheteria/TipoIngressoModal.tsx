@@ -29,6 +29,7 @@ export function TipoIngressoModal({
   const [valor, setValor] = useState(tipo ? tipo.valor.toFixed(2) : "");
   const [validade, setValidade] = useState(tipo?.validade ?? "1 dia");
   const [regraReentrada, setRegraReentrada] = useState<RegraReentrada>(tipo?.regraReentrada ?? "unica");
+  const [semExpiracao, setSemExpiracao] = useState(tipo?.semExpiracao ?? false);
   const [ativo, setAtivo] = useState(tipo?.ativo ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -42,6 +43,7 @@ export function TipoIngressoModal({
       valor: Number(valor.replace(",", ".")),
       validade,
       regraReentrada,
+      semExpiracao,
       ativo,
     };
     const result = tipo ? await updateTipoIngresso(tipo.id, input) : await createTipoIngresso(input);
@@ -74,13 +76,37 @@ export function TipoIngressoModal({
             </div>
             <div>
               <Label>Validade</Label>
-              <Input value={validade} onChange={(e) => setValidade(e.target.value)} placeholder="1 dia" />
+              <Input
+                value={semExpiracao ? "Sem expiração" : validade}
+                onChange={(e) => setValidade(e.target.value)}
+                placeholder="1 dia"
+                disabled={semExpiracao}
+              />
             </div>
           </div>
+          <label className="flex cursor-pointer items-start gap-2 rounded-[6px] border border-gray-200 bg-gray-50 px-3 py-2.5">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={semExpiracao}
+              onChange={(e) => setSemExpiracao(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-gray-800">Sem expiração (acesso sempre liberado)</span>
+              <span className="block text-[11px] text-gray-500">
+                O ingresso nunca vence e a catraca libera todas as vezes que for lido, sem data de utilização. Só deixa de
+                funcionar se for cancelado ou excluído.
+              </span>
+            </span>
+          </label>
           <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Regra de entrada</Label>
-              <Select value={regraReentrada} onChange={(e) => setRegraReentrada(e.target.value as RegraReentrada)}>
+              <Select
+                value={semExpiracao ? "ilimitado" : regraReentrada}
+                onChange={(e) => setRegraReentrada(e.target.value as RegraReentrada)}
+                disabled={semExpiracao}
+              >
                 {(Object.keys(REGRA_REENTRADA_LABEL) as RegraReentrada[]).map((k) => (
                   <option key={k} value={k}>
                     {REGRA_REENTRADA_LABEL[k]}

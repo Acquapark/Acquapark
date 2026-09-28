@@ -47,6 +47,7 @@ async function validarIngresso(supabase: SupabaseClient, ingresso: Record<string
   const dataUtilizacao = ingresso.data_utilizacao as string;
   const status = ingresso.status as string;
   const regra = ingresso.regra_reentrada as string;
+  const semExpiracao = ingresso.sem_expiracao === true;
   const hoje = hojeBR();
   const titulo = `Ingresso ${numero}`;
   const detalhe = [tipoNome, comprador].filter(Boolean).join(" — ");
@@ -60,13 +61,15 @@ async function validarIngresso(supabase: SupabaseClient, ingresso: Record<string
   if (status === "Expirado") return negar("Ingresso expirado.");
   if (status === "Utilizado") return negar("Ingresso já utilizado.");
 
-  if (dataUtilizacao < hoje) {
-    await supabase.from("ingressos").update({ status: "Expirado" }).eq("id", id).eq("status", "Disponível");
-    return negar(`Ingresso expirado (era válido em ${formatarDataBR(dataUtilizacao)}).`);
+  if (!semExpiracao) {
+    if (dataUtilizacao < hoje) {
+      await supabase.from("ingressos").update({ status: "Expirado" }).eq("id", id).eq("status", "Disponível");
+      return negar(`Ingresso expirado (era válido em ${formatarDataBR(dataUtilizacao)}).`);
+    }
+    if (dataUtilizacao > hoje) return negar(`Ingresso válido apenas em ${formatarDataBR(dataUtilizacao)}.`);
   }
-  if (dataUtilizacao > hoje) return negar(`Ingresso válido apenas em ${formatarDataBR(dataUtilizacao)}.`);
 
-  if (regra === "unica") {
+  if (regra === "unica" && !semExpiracao) {
     // Update condicional: se dois leitores lerem ao mesmo tempo, só um consegue consumir o ingresso.
     const { data: consumido } = await supabase
       .from("ingressos")
@@ -126,7 +129,7 @@ export async function validarPorCodigo(supabase: SupabaseClient, codigoBruto: st
 
   const { data: ingresso } = await supabase
     .from("ingressos")
-    .select("id, numero, comprador_nome, data_utilizacao, status, regra_reentrada, tipos_ingresso ( nome )")
+    .select("id, numero, comprador_nome, data_utilizacao, status, regra_reentrada, sem_expiracao, tipos_ingresso ( nome )")
     .eq("codigo", codigo)
     .maybeSingle();
 
