@@ -22,6 +22,7 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
   const { pode } = useAcesso();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AssociadoStatus | "Todos">("Todos");
+  const [origemFilter, setOrigemFilter] = useState<Associado["origem"] | "Todas">("Todas");
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -46,9 +47,10 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
       const matchesSearch =
         a.nome.toLowerCase().includes(search.toLowerCase()) || a.cpf.includes(search) || a.numero.includes(search);
       const matchesStatus = statusFilter === "Todos" || a.status === statusFilter;
-      return matchesSearch && matchesStatus;
+      const matchesOrigem = origemFilter === "Todas" || a.origem === origemFilter;
+      return matchesSearch && matchesStatus && matchesOrigem;
     });
-  }, [associados, search, statusFilter]);
+  }, [associados, search, statusFilter, origemFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -104,6 +106,18 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
               <option value="Suspenso">Suspenso</option>
               <option value="Inativo">Inativo</option>
             </Select>
+            <Select
+              value={origemFilter}
+              onChange={(e) => {
+                setOrigemFilter(e.target.value as Associado["origem"] | "Todas");
+                setPage(1);
+              }}
+              className="h-8 w-44"
+            >
+              <option value="Todas">Todas as origens</option>
+              <option value="equipe">Cadastro pela equipe</option>
+              <option value="autocadastro">Cadastro pela internet</option>
+            </Select>
           </div>
 
           <span className="ml-auto text-xs text-gray-400">{filtered.length} resultado(s)</span>
@@ -133,7 +147,10 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
                     </div>
                     <div>
                       <p className="font-medium text-gray-800">{a.nome}</p>
-                      <p className="text-xs text-gray-500">Nº {a.numero}</p>
+                      <p className="text-xs text-gray-500">
+                        Nº {a.numero}
+                        {a.origem === "autocadastro" && <span className="ml-1.5 font-medium text-primary-600">· Internet</span>}
+                      </p>
                     </div>
                   </div>
                 </Td>

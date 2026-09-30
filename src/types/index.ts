@@ -19,6 +19,8 @@ export interface Plano {
   regraPrimeiraParcela: RegraPrimeiraParcela;
   /** Todas as parcelas vencem no dia do mês da data de contratação (ignora dia fixo e 1ª parcela). */
   vencimentoNaContratacao: boolean;
+  /** Aparece na página pública de autocadastro (/cadastro). */
+  disponivelAutocadastro: boolean;
   ativo: boolean;
 }
 
@@ -95,6 +97,8 @@ export interface Associado {
   vencimento: string;
   ultimoAcesso: string;
   fotoUrl?: string;
+  /** Quem fez o cadastro: a equipe no painel ou o próprio associado pela internet. */
+  origem: "equipe" | "autocadastro";
   dependentes: Dependente[];
   mensalidades: Mensalidade[];
   acessos: AcessoRegistro[];

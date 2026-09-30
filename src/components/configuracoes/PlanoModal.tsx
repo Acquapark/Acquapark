@@ -20,6 +20,7 @@ export function PlanoModal({ open, onClose, plano }: { open: boolean; onClose: (
     plano?.regraPrimeiraParcela ?? "padrao",
   );
   const [vencimentoNaContratacao, setVencimentoNaContratacao] = useState(plano?.vencimentoNaContratacao ?? false);
+  const [disponivelAutocadastro, setDisponivelAutocadastro] = useState(plano?.disponivelAutocadastro ?? false);
   const [beneficios, setBeneficios] = useState(plano?.beneficios.join(", ") ?? "");
   const [ativo, setAtivo] = useState(plano?.ativo ?? true);
   const [saving, setSaving] = useState(false);
@@ -41,6 +42,7 @@ export function PlanoModal({ open, onClose, plano }: { open: boolean; onClose: (
       diaVencimento: Math.min(28, Math.max(1, Number(diaVencimento) || 10)),
       regraPrimeiraParcela,
       vencimentoNaContratacao,
+      disponivelAutocadastro,
       beneficios: beneficios
         .split(",")
         .map((b) => b.trim())
@@ -171,6 +173,28 @@ export function PlanoModal({ open, onClose, plano }: { open: boolean; onClose: (
             <Label>Benefícios (separados por vírgula)</Label>
             <Textarea value={beneficios} onChange={(e) => setBeneficios(e.target.value)} placeholder="Acesso ilimitado, Estacionamento" />
           </div>
+
+          <label
+            className={cn(
+              "flex cursor-pointer items-start gap-2.5 rounded-[6px] border px-3 py-2.5",
+              disponivelAutocadastro ? "border-primary-500 bg-primary-50" : "border-gray-200",
+            )}
+          >
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={disponivelAutocadastro}
+              onChange={(e) => setDisponivelAutocadastro(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-gray-800">Disponível no autocadastro</span>
+              <span className="block text-[11px] text-gray-500">
+                O plano aparece na página pública de cadastro, onde a pessoa se associa sozinha pela internet.
+                {!vencimentoNaContratacao && regraPrimeiraParcela === "manual" &&
+                  " Atenção: com a 1ª parcela definida manualmente o plano não aparece no autocadastro, pois exige a escolha da data pela equipe."}
+              </span>
+            </span>
+          </label>
 
           <div>
             <Label>Status</Label>

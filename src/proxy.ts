@@ -34,6 +34,11 @@ export async function proxy(request: NextRequest) {
   const userId = (claimsData?.claims?.sub as string | undefined) ?? null;
 
   const pathname = request.nextUrl.pathname;
+
+  // Autocadastro público: qualquer pessoa (logada ou não) pode abrir. A action
+  // valida tudo no servidor, sem depender de sessão.
+  if (pathname === "/cadastro" || pathname.startsWith("/cadastro/")) return response;
+
   const isPortalPath = pathname.startsWith("/portal");
   const isPortalPublic = PORTAL_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const isAdminLoginPage = pathname === "/login";

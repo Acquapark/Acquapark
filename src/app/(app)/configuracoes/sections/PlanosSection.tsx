@@ -59,7 +59,14 @@ export function PlanosSection({ planos }: { planos: Plano[] }) {
               <Td>{p.vencimentoNaContratacao ? "Data da contratação" : `Dia ${p.diaVencimento}`}</Td>
               <Td>{p.dependentesPermitidos}</Td>
               <Td>
-                <Badge tone={p.ativo ? "success" : "neutral"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge tone={p.ativo ? "success" : "neutral"}>{p.ativo ? "Ativo" : "Inativo"}</Badge>
+                  {p.disponivelAutocadastro && (
+                    <Badge tone="info" dot={false}>
+                      Autocadastro
+                    </Badge>
+                  )}
+                </div>
               </Td>
               <Td>
                 {pode("planos.editar") && (

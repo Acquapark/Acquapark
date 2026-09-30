@@ -7,7 +7,7 @@ import { ArrowLeft, Ban, IdCard, Pencil, RotateCcw, UserX, X } from "lucide-reac
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Tabs } from "@/components/ui/Tabs";
-import { StatusBadge, StatusMaps } from "@/components/ui/Badge";
+import { Badge, StatusBadge, StatusMaps } from "@/components/ui/Badge";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { AssociadoFormState, emptyAssociadoForm } from "@/components/associados/form-types";
 import { StepDadosBasicos } from "@/components/associados/steps/StepDadosBasicos";
@@ -210,13 +210,19 @@ export function AssociadoProfileClient({
       <Card className="mb-5">
         <div className="flex flex-wrap items-center justify-between gap-4 p-5">
           <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 text-lg font-semibold text-primary-700">
-              {associado.nome.split(" ").map((n) => n[0]).slice(0, 2).join("")}
-            </div>
+            {associado.fotoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- URL assinada temporária do Supabase Storage
+              <img src={associado.fotoUrl} alt={associado.nome} className="h-14 w-14 rounded-full object-cover" />
+            ) : (
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-50 text-lg font-semibold text-primary-700">
+                {associado.nome.split(" ").map((n) => n[0]).slice(0, 2).join("")}
+              </div>
+            )}
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-base font-semibold text-gray-900">{associado.nome}</h1>
                 <StatusBadge status={associado.status} map={StatusMaps.associado} />
+                {associado.origem === "autocadastro" && <Badge tone="info" dot={false}>Cadastro pela internet</Badge>}
               </div>
               <p className="mt-0.5 text-xs text-gray-500">
                 Nº {associado.numero} · Plano {associado.plano} · Situação financeira:{" "}

@@ -13,6 +13,19 @@ export function formatCPF(value: string) {
     .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
 }
 
+/** Confere os dígitos verificadores do CPF (aceita com ou sem máscara). */
+export function isCPFValido(value: string) {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) return false;
+  for (const tamanho of [9, 10]) {
+    let soma = 0;
+    for (let i = 0; i < tamanho; i++) soma += Number(digits[i]) * (tamanho + 1 - i);
+    const dv = ((soma * 10) % 11) % 10;
+    if (dv !== Number(digits[tamanho])) return false;
+  }
+  return true;
+}
+
 /** RG não tem padrão nacional único, mas a maioria dos estados segue XX.XXX.XXX-X (o dígito verificador final às vezes é "X"). */
 export function formatRG(value: string) {
   const chars = value

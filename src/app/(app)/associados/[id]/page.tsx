@@ -20,10 +20,17 @@ export default async function AssociadoProfilePage({ params }: { params: Promise
 
   if (!result) notFound();
 
+  // A foto fica em bucket privado: gera uma URL temporária só para esta visualização.
+  let fotoUrl: string | undefined;
+  if (result.associado.fotoUrl) {
+    const { data } = await supabase.storage.from("associados-fotos").createSignedUrl(result.associado.fotoUrl, 60 * 60);
+    fotoUrl = data?.signedUrl;
+  }
+
   return (
     <AssociadoProfileClient
       key={id}
-      associado={result.associado}
+      associado={{ ...result.associado, fotoUrl }}
       planoId={result.planoId}
       credencialCodigo={result.credencialCodigo}
       planos={planos}

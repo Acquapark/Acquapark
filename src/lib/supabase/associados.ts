@@ -15,6 +15,7 @@ function mapPlano(row: Row | null): Plano | null {
     diaVencimento: (row.dia_vencimento as number) ?? 10,
     regraPrimeiraParcela: (row.regra_primeira_parcela as RegraPrimeiraParcela) ?? "padrao",
     vencimentoNaContratacao: (row.vencimento_na_contratacao as boolean) ?? false,
+    disponivelAutocadastro: (row.disponivel_autocadastro as boolean) ?? false,
     ativo: (row.ativo as boolean) ?? true,
   };
 }
@@ -63,7 +64,7 @@ function mapAcesso(row: Row): AcessoRegistro {
 }
 
 const LIST_SELECT = `
-  id, numero, nome, cpf, email, telefone, status,
+  id, numero, nome, cpf, email, telefone, status, origem,
   planos ( nome, valor ),
   mensalidades ( vencimento, valor, status ),
   credenciais ( acessos ( registrado_em ) )
@@ -104,6 +105,7 @@ export async function getAssociados(supabase: SupabaseClient): Promise<Associado
             minute: "2-digit",
           })
         : "—",
+      origem: row.origem === "autocadastro" ? "autocadastro" : "equipe",
       dependentes: [],
       mensalidades: [],
       acessos: [],
@@ -163,6 +165,9 @@ export async function getAssociadoById(
       mensalidade: pendente ? pendente.valor : (plano?.valor ?? 0),
       vencimento: pendente ? pendente.vencimento : "",
       ultimoAcesso: acessos[0] ? `${acessos[0].data} ${acessos[0].horario}` : "—",
+      origem: row.origem === "autocadastro" ? "autocadastro" : "equipe",
+      // Caminho no bucket privado `associados-fotos` — quem exibe gera a URL assinada.
+      fotoUrl: (row.foto_url as string) ?? undefined,
       dependentes,
       mensalidades,
       acessos,
