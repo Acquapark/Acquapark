@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { hojeBR } from "@/lib/datas-br";
 import { formatCEP, formatCPF, formatPhone, isCPFValido } from "@/lib/utils";
 import {
+  camposExigidosPeloContrato,
   criarAcessoAutomatico,
   criarContratoEMensalidades,
   gerarEEnviarContratoAutomatico,
@@ -121,6 +122,14 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
   }
   await admin.from("autocadastro_tentativas").insert({ ip });
 
+  // Dados que o modelo de contrato padrão usa: sem eles o contrato não sai.
+  const faltandoParaContrato = (await camposExigidosPeloContrato(admin)).filter(
+    (v) => !String(dados[v.campo] ?? "").trim(),
+  );
+  if (faltandoParaContrato.length > 0) {
+    return { error: `Preencha: ${faltandoParaContrato.map((v) => v.label).join(", ")}.` };
+  }
+
   const planos = await getPlanosAutocadastro(admin);
   const plano = planos.find((p) => p.id === dados.planoId);
   if (!plano) return { error: "O plano escolhido não está mais disponível. Escolha outro plano." };
@@ -164,6 +173,7 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     .insert({
       nome: dados.nome.trim(),
       cpf,
+      rg: dados.rg?.trim() || null,
       nascimento: dados.nascimento,
       sexo: dados.sexo || null,
       telefone: formatPhone(dados.telefone),
@@ -220,13 +230,14 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
 
   const acessoCriado = await criarAcessoAutomatico(associadoId, email, dados.senha);
 
-  await gerarEEnviarContratoAutomatico(admin, {
+  const avisoContrato = await gerarEEnviarContratoAutomatico(admin, {
     associadoId,
     associadoNome: dados.nome.trim(),
     associadoEmail: email,
     dataContrato: hoje,
     geradoPor: null,
   });
+  if (avisoContrato) console.error(`Autocadastro ${associado.numero}: ${avisoContrato}`);
 
   const { data: primeira } = await admin
     .from("mensalidades")

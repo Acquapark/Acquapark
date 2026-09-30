@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Waves } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlanosAutocadastro } from "@/lib/associados/autocadastro";
+import { camposExigidosPeloContrato } from "@/lib/associados/cadastro";
 import { AutocadastroClient } from "./AutocadastroClient";
 
 export const metadata: Metadata = {
@@ -16,7 +17,8 @@ export default async function CadastroPage() {
 
   // Página pública, sem sessão: os planos são lidos pelo servidor e só os
   // campos que a página precisa chegam ao navegador.
-  const planos = await getPlanosAutocadastro(createAdminClient());
+  const admin = createAdminClient();
+  const [planos, camposContrato] = await Promise.all([getPlanosAutocadastro(admin), camposExigidosPeloContrato(admin)]);
 
   if (planos.length === 0) {
     return (
@@ -32,5 +34,5 @@ export default async function CadastroPage() {
     );
   }
 
-  return <AutocadastroClient planos={planos} />;
+  return <AutocadastroClient planos={planos} camposContrato={camposContrato.map((c) => c.campo)} />;
 }

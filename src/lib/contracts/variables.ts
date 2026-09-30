@@ -213,6 +213,40 @@ function escapeHtml(value: string) {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * Campo dos formulários de cadastro (painel e autocadastro usam os mesmos
+ * nomes) que alimenta cada variável `associado.*` do contrato.
+ */
+export const CAMPO_DO_FORMULARIO = {
+  "associado.nome": "nome",
+  "associado.cpf": "cpf",
+  "associado.rg": "rg",
+  "associado.data_nascimento": "nascimento",
+  "associado.telefone": "telefone",
+  "associado.email": "email",
+  "associado.endereco": "endereco",
+  "associado.numero": "numero",
+  "associado.bairro": "bairro",
+  "associado.cidade": "cidade",
+  "associado.estado": "estado",
+  "associado.cep": "cep",
+} as const;
+
+export type CampoFormularioContrato = (typeof CAMPO_DO_FORMULARIO)[keyof typeof CAMPO_DO_FORMULARIO];
+
+/** Variáveis `associado.*` que o template usa — os dados que o cadastro precisa ter para o contrato sair. */
+export function variaveisDoAssociadoUsadas(templateHtml: string): (VariableDef & { campo: CampoFormularioContrato })[] {
+  const used = new Set<string>();
+  let match: RegExpExecArray | null;
+  const regex = new RegExp(TOKEN_REGEX);
+  while ((match = regex.exec(templateHtml)) !== null) used.add(match[1]);
+
+  return CONTRACT_VARIABLES.filter((v) => used.has(v.key) && v.key in CAMPO_DO_FORMULARIO).map((v) => ({
+    ...v,
+    campo: CAMPO_DO_FORMULARIO[v.key as keyof typeof CAMPO_DO_FORMULARIO],
+  }));
+}
+
 /** Retorna a lista de variáveis (associado.* e plano.*) usadas no template cujo valor resolvido está vazio. */
 export function findMissingVariables(templateHtml: string, data: ContractData): VariableDef[] {
   const used = new Set<string>();

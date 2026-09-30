@@ -7,6 +7,7 @@ import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import {
+  camposExigidosPeloContrato,
   criarAcessoAutomatico,
   criarContratoEMensalidades,
   gerarEEnviarContratoAutomatico,
@@ -29,6 +30,13 @@ export async function createAssociado(form: AssociadoFormState) {
   if (form.planoId && form.dataInicio) {
     const validacao = await validarPrimeiraParcela(supabase, form.planoId, form.dataInicio, form.primeiraParcelaData);
     if (validacao.error) return { error: validacao.error };
+  }
+
+  // O contrato automático usa dados do cadastro: sem eles ele não é gerado.
+  // Melhor avisar agora, com o formulário aberto, do que falhar depois.
+  const faltandoParaContrato = (await camposExigidosPeloContrato(supabase)).filter((v) => !String(form[v.campo] ?? "").trim());
+  if (faltandoParaContrato.length > 0) {
+    return { error: `Preencha os dados usados no contrato: ${faltandoParaContrato.map((v) => v.label).join(", ")}.` };
   }
 
   const { data: associado, error: associadoError } = await supabase
@@ -105,7 +113,7 @@ export async function createAssociado(form: AssociadoFormState) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  await gerarEEnviarContratoAutomatico(supabase, {
+  const avisoContrato = await gerarEEnviarContratoAutomatico(supabase, {
     associadoId: associado.id as string,
     associadoNome: form.nome,
     associadoEmail: form.email,
@@ -119,6 +127,7 @@ export async function createAssociado(form: AssociadoFormState) {
     associadoId: associado.id as string,
     numero: associado.numero as string,
     credencialCodigo: (credencial?.codigo as string) ?? undefined,
+    avisoContrato: avisoContrato ?? undefined,
   };
 }
 

@@ -32,6 +32,7 @@ export function AssociadoModal({
   const [savedNumero, setSavedNumero] = useState<string | null>(null);
   const [savedAssociadoId, setSavedAssociadoId] = useState<string | null>(null);
   const [credencialCodigo, setCredencialCodigo] = useState<string | null>(null);
+  const [avisoContrato, setAvisoContrato] = useState<string | null>(null);
 
   function update(patch: Partial<AssociadoFormState>) {
     setForm((prev) => ({ ...prev, ...patch }));
@@ -44,6 +45,7 @@ export function AssociadoModal({
     setSavedNumero(null);
     setSavedAssociadoId(null);
     setCredencialCodigo(null);
+    setAvisoContrato(null);
     onClose();
   }
 
@@ -67,6 +69,7 @@ export function AssociadoModal({
     setSavedNumero(result.numero ?? null);
     setSavedAssociadoId(result.associadoId ?? null);
     setCredencialCodigo(result.credencialCodigo ?? null);
+    setAvisoContrato(result.avisoContrato ?? null);
     router.refresh();
     return true;
   }
@@ -119,6 +122,11 @@ export function AssociadoModal({
         {savedNumero && (
           <div className="mt-4 rounded-[4px] border border-success-600/30 bg-success-50 px-3 py-2 text-xs text-success-700">
             Associado salvo com sucesso — número {savedNumero}. Você pode continuar preenchendo as próximas etapas.
+          </div>
+        )}
+        {avisoContrato && (
+          <div className="mt-2 rounded-[4px] border border-warning-600/30 bg-warning-50 px-3 py-2 text-xs text-warning-700">
+            {avisoContrato}
           </div>
         )}
       </ModalBody>

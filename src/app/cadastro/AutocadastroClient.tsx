@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Check, CheckCircle2, Plus, Trash2, Waves } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { cn, formatCEP, formatCPF, formatCurrency, formatDate, formatPhone, isCPFValido } from "@/lib/utils";
+import { cn, formatCEP, formatCPF, formatCurrency, formatDate, formatPhone, formatRG, isCPFValido } from "@/lib/utils";
+import type { CampoFormularioContrato } from "@/lib/contracts/variables";
 import {
   AutocadastroDados,
   AutocadastroDependente,
@@ -33,6 +34,7 @@ const inputClass =
 const emptyDados: AutocadastroDados = {
   nome: "",
   cpf: "",
+  rg: "",
   nascimento: "",
   sexo: "",
   telefone: "",
@@ -84,7 +86,14 @@ async function comprimirFoto(arquivo: File): Promise<Blob> {
   throw new Error("foto grande demais");
 }
 
-export function AutocadastroClient({ planos }: { planos: PlanoAutocadastro[] }) {
+export function AutocadastroClient({
+  planos,
+  camposContrato,
+}: {
+  planos: PlanoAutocadastro[];
+  /** Campos que o modelo de contrato padrão usa — obrigatórios para o contrato ser gerado. */
+  camposContrato: CampoFormularioContrato[];
+}) {
   const router = useRouter();
   const [dados, setDados] = useState<AutocadastroDados>(emptyDados);
   const [foto, setFoto] = useState<{ blob: Blob; preview: string } | null>(null);
@@ -184,6 +193,7 @@ export function AutocadastroClient({ planos }: { planos: PlanoAutocadastro[] }) 
       if (!dados.endereco.trim() || !dados.numero.trim() || !dados.bairro.trim() || !dados.cidade.trim() || !dados.estado.trim()) {
         return "Preencha o endereço completo.";
       }
+      if (camposContrato.includes("rg") && !dados.rg.trim()) return "Informe seu RG.";
     }
     if (etapa === "foto" && !foto) return "Tire ou envie uma foto do seu rosto.";
     if (etapa === "plano" && !plano) return "Escolha um plano.";
@@ -339,6 +349,15 @@ export function AutocadastroClient({ planos }: { planos: PlanoAutocadastro[] }) 
                 placeholder="000.000.000-00"
                 inputMode="numeric"
                 maxLength={14}
+              />
+            </Campo>
+            <Campo label="RG" required={camposContrato.includes("rg")}>
+              <input
+                className={inputClass}
+                value={dados.rg}
+                onChange={(e) => update({ rg: formatRG(e.target.value) })}
+                placeholder="00.000.000-0"
+                maxLength={12}
               />
             </Campo>
             <div className="grid grid-cols-2 gap-3">

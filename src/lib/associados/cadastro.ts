@@ -6,6 +6,8 @@ import { RegraPrimeiraParcela } from "@/types";
 import { gerarContratoParaAssociado, getModeloPadrao } from "@/lib/contracts/gerar";
 import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
+import { getModeloById } from "@/lib/supabase/contratos";
+import { variaveisDoAssociadoUsadas } from "@/lib/contracts/variables";
 
 /*
  * Etapas do cadastro de associado compartilhadas entre o painel da equipe
@@ -16,17 +18,22 @@ import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade"
 /**
  * Gera o contrato a partir do modelo padrão e já envia para assinatura na
  * Autentique — roda ao final do cadastro do associado. Nunca falha a
- * criação do associado: se não houver modelo padrão, ou o envio der erro
- * (API fora do ar, etc.), o contrato fica só "Gerado" (ou nem é criado) e a
- * equipe resolve manualmente depois em Contrato → Enviar p/ assinatura.
+ * criação do associado: se não houver modelo padrão, faltar dado exigido pelo
+ * modelo, ou o envio der erro (API fora do ar, etc.), o contrato fica só
+ * "Gerado" (ou nem é criado) e a equipe resolve manualmente depois em
+ * Contrato → Gerar / Enviar p/ assinatura. Retorna o motivo quando algo não
+ * saiu (null = gerado e enviado), para quem chamou poder avisar a equipe.
  */
 export async function gerarEEnviarContratoAutomatico(
   supabase: SupabaseClient,
   params: { associadoId: string; associadoNome: string; associadoEmail: string; dataContrato: string; geradoPor: string | null },
-) {
+): Promise<string | null> {
+  let contratoGerado = false;
   try {
     const modeloId = await getModeloPadrao(supabase);
-    if (!modeloId) return;
+    if (!modeloId) {
+      return "O contrato não foi gerado: não há modelo de contrato padrão ativo (menu Contratos → Marcar como padrão).";
+    }
 
     const contrato = await gerarContratoParaAssociado(supabase, {
       associadoId: params.associadoId,
@@ -36,8 +43,12 @@ export async function gerarEEnviarContratoAutomatico(
     });
     if ("error" in contrato) {
       console.error("Contrato automático não gerado:", contrato.error);
-      return;
+      const faltando = contrato.missing?.map((m) => `${m.label} (${m.group})`).join(", ");
+      return faltando
+        ? `O contrato não foi gerado: faltam dados usados no modelo — ${faltando}. Complete o cadastro e gere pela aba Contrato.`
+        : `O contrato não foi gerado: ${contrato.error}`;
     }
+    contratoGerado = true;
 
     const { documentoId } = await criarDocumentoParaAssinatura({
       nomeDocumento: `Contrato ${contrato.numero} - ${params.associadoNome}`,
@@ -50,9 +61,25 @@ export async function gerarEEnviarContratoAutomatico(
       .from("contratos_gerados")
       .update({ status: "Enviado para assinatura", enviado_em: new Date().toISOString(), autentique_document_id: documentoId })
       .eq("id", contrato.contratoId);
+    return null;
   } catch (err) {
     console.error("Falha ao gerar/enviar contrato automático para assinatura:", err);
+    const detalhe = err instanceof Error ? err.message : "erro desconhecido";
+    return contratoGerado
+      ? `O contrato foi gerado, mas não foi enviado para assinatura (${detalhe}). Envie pela aba Contrato.`
+      : `O contrato não foi gerado (${detalhe}).`;
   }
+}
+
+/**
+ * Dados do associado que o modelo de contrato padrão usa — o cadastro exige
+ * esses campos para o contrato automático não falhar por falta de informação.
+ */
+export async function camposExigidosPeloContrato(supabase: SupabaseClient) {
+  const modeloId = await getModeloPadrao(supabase);
+  if (!modeloId) return [];
+  const modelo = await getModeloById(supabase, modeloId);
+  return modelo ? variaveisDoAssociadoUsadas(modelo.conteudoHtml) : [];
 }
 
 /**

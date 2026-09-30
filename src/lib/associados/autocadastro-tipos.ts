@@ -9,6 +9,7 @@ export interface AutocadastroDependente {
 export interface AutocadastroDados {
   nome: string;
   cpf: string;
+  rg: string;
   nascimento: string;
   sexo: string;
   telefone: string;
