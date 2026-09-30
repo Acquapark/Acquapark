@@ -13,7 +13,7 @@ import { StepFinanceiro } from "./steps/StepFinanceiro";
 import { StepAcessos } from "./steps/StepAcessos";
 import { StepCredencial } from "./steps/StepCredencial";
 import { Plano } from "@/types";
-import { createAssociado, regenerarCredencial } from "@/app/(app)/associados/actions";
+import { createAssociado, regenerarCredencial, salvarFotoAssociado } from "@/app/(app)/associados/actions";
 
 export function AssociadoModal({
   open,
@@ -33,6 +33,8 @@ export function AssociadoModal({
   const [savedAssociadoId, setSavedAssociadoId] = useState<string | null>(null);
   const [credencialCodigo, setCredencialCodigo] = useState<string | null>(null);
   const [avisoContrato, setAvisoContrato] = useState<string | null>(null);
+  const [foto, setFoto] = useState<{ blob: Blob; preview: string } | null>(null);
+  const [avisoFoto, setAvisoFoto] = useState<string | null>(null);
 
   function update(patch: Partial<AssociadoFormState>) {
     setForm((prev) => ({ ...prev, ...patch }));
@@ -46,6 +48,8 @@ export function AssociadoModal({
     setSavedAssociadoId(null);
     setCredencialCodigo(null);
     setAvisoContrato(null);
+    setFoto(null);
+    setAvisoFoto(null);
     onClose();
   }
 
@@ -70,8 +74,26 @@ export function AssociadoModal({
     setSavedAssociadoId(result.associadoId ?? null);
     setCredencialCodigo(result.credencialCodigo ?? null);
     setAvisoContrato(result.avisoContrato ?? null);
+    // A foto vai depois: o associado precisa existir para ela ser vinculada.
+    if (foto && result.associadoId) await enviarFotoDoCadastro(result.associadoId, foto.blob);
     router.refresh();
     return true;
+  }
+
+  async function enviarFotoDoCadastro(associadoId: string, blob: Blob) {
+    const formData = new FormData();
+    formData.set("foto", blob, "foto.jpg");
+    const result = await salvarFotoAssociado(associadoId, formData);
+    setAvisoFoto(
+      "error" in result ? `O associado foi salvo, mas a foto não: ${result.error} Envie de novo pelo perfil dele.` : null,
+    );
+  }
+
+  function handleFoto(blob: Blob, preview: string) {
+    if (foto) URL.revokeObjectURL(foto.preview);
+    setFoto({ blob, preview });
+    // Já salvo? Então a foto escolhida agora é enviada na hora.
+    if (savedAssociadoId) void enviarFotoDoCadastro(savedAssociadoId, blob);
   }
 
   async function handleRegenerateCredencial() {
@@ -98,7 +120,7 @@ export function AssociadoModal({
       <ModalSteps steps={STEPS} activeIndex={step} onStepClick={setStep} />
 
       <ModalBody>
-        {step === 0 && <StepDadosBasicos form={form} update={update} />}
+        {step === 0 && <StepDadosBasicos form={form} update={update} fotoPreview={foto?.preview} onFoto={handleFoto} />}
         {step === 1 && <StepPlano form={form} update={update} planos={planos} />}
         {step === 2 && <StepDependentes form={form} update={update} planos={planos} />}
         {step === 3 && <StepContrato form={form} update={update} planos={planos} />}
@@ -110,6 +132,7 @@ export function AssociadoModal({
             numero={savedNumero ?? undefined}
             planos={planos}
             codigo={credencialCodigo}
+            fotoUrl={foto?.preview}
             onRegenerate={savedAssociadoId ? handleRegenerateCredencial : undefined}
           />
         )}
@@ -123,6 +146,9 @@ export function AssociadoModal({
           <div className="mt-4 rounded-[4px] border border-success-600/30 bg-success-50 px-3 py-2 text-xs text-success-700">
             Associado salvo com sucesso — número {savedNumero}. Você pode continuar preenchendo as próximas etapas.
           </div>
+        )}
+        {avisoFoto && (
+          <div className="mt-2 rounded-[4px] border border-warning-600/30 bg-warning-50 px-3 py-2 text-xs text-warning-700">{avisoFoto}</div>
         )}
         {avisoContrato && (
           <div className="mt-2 rounded-[4px] border border-warning-600/30 bg-warning-50 px-3 py-2 text-xs text-warning-700">

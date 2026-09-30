@@ -9,10 +9,13 @@ import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import {
+  BUCKET_FOTOS,
   camposExigidosPeloContrato,
   criarAcessoAutomatico,
   criarContratoEMensalidades,
   gerarEEnviarContratoAutomatico,
+  enviarFoto,
+  validarFoto,
   validarPrimeiraParcela,
 } from "@/lib/associados/cadastro";
 import { ativarAssociadoSeParcela1Paga } from "@/lib/supabase/associados";
@@ -425,5 +428,35 @@ export async function registrarPagamento(
 
   revalidatePath(`/associados/${associadoId}`);
   revalidatePath("/financeiro");
+  return { success: true };
+}
+
+/**
+ * Envia ou troca a foto do associado (cadastro e edição pelo painel). A foto
+ * antiga é apagada do bucket depois que a nova já está gravada.
+ */
+export async function salvarFotoAssociado(associadoId: string, formData: FormData) {
+  // "criar" também vale: o cadastro envia a foto logo depois de criar o associado.
+  const negado = await exigirPermissao("associados.editar", "associados.criar");
+  if (negado) return { error: negado.error };
+
+  const foto = validarFoto(formData.get("foto"));
+  if ("error" in foto) return foto;
+
+  const supabase = await createClient();
+  const { data: associado } = await supabase.from("associados").select("foto_url").eq("id", associadoId).maybeSingle();
+  if (!associado) return { error: "Associado não encontrado." };
+
+  const enviada = await enviarFoto(supabase, foto);
+  if ("error" in enviada) return enviada;
+
+  const { error } = await supabase.from("associados").update({ foto_url: enviada.caminho }).eq("id", associadoId);
+  if (error) {
+    await supabase.storage.from(BUCKET_FOTOS).remove([enviada.caminho]);
+    return { error: error.message };
+  }
+  if (associado.foto_url) await supabase.storage.from(BUCKET_FOTOS).remove([associado.foto_url as string]);
+
+  revalidatePath(`/associados/${associadoId}`);
   return { success: true };
 }

@@ -6,20 +6,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { hojeBR } from "@/lib/datas-br";
 import { formatCEP, formatCPF, formatPhone, isCPFValido } from "@/lib/utils";
 import {
+  BUCKET_FOTOS,
   camposExigidosPeloContrato,
   criarAcessoAutomatico,
   criarContratoEMensalidades,
+  enviarFoto,
   gerarEEnviarContratoAutomatico,
+  validarFoto,
 } from "@/lib/associados/cadastro";
 import { getPlanosAutocadastro } from "@/lib/associados/autocadastro";
-import {
-  AutocadastroDados,
-  FOTO_TAMANHO_MAXIMO,
-  SENHA_TAMANHO_MINIMO,
-} from "@/lib/associados/autocadastro-tipos";
+import { AutocadastroDados, SENHA_TAMANHO_MINIMO } from "@/lib/associados/autocadastro-tipos";
 
-const BUCKET_FOTOS = "associados-fotos";
-const TIPOS_FOTO: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 const LIMITE_TENTATIVAS_POR_HORA = 5;
 const IDADE_MINIMA_TITULAR = 18;
 const MENSAGEM_DADOS_EM_USO =
@@ -101,11 +98,8 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
   const erroValidacao = validar(dados, hoje);
   if (erroValidacao) return { error: erroValidacao };
 
-  const foto = formData.get("foto");
-  if (!(foto instanceof File) || foto.size === 0) return { error: "A foto é obrigatória." };
-  const extensaoFoto = TIPOS_FOTO[foto.type];
-  if (!extensaoFoto) return { error: "Envie a foto em JPG, PNG ou WEBP." };
-  if (foto.size > FOTO_TAMANHO_MAXIMO) return { error: "A foto ficou muito grande. Tente outra imagem." };
+  const foto = validarFoto(formData.get("foto"));
+  if ("error" in foto) return foto;
 
   const admin = createAdminClient();
 
@@ -154,14 +148,9 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
   if (cpfEmUso || emailEmUsoAssociado || emailEmUsoAcesso) return { error: MENSAGEM_DADOS_EM_USO };
 
   // Foto primeiro: o associado só é criado se ela foi guardada (é obrigatória).
-  const caminhoFoto = `${crypto.randomUUID()}.${extensaoFoto}`;
-  const { error: uploadError } = await admin.storage
-    .from(BUCKET_FOTOS)
-    .upload(caminhoFoto, Buffer.from(await foto.arrayBuffer()), { contentType: foto.type });
-  if (uploadError) {
-    console.error("Autocadastro: falha ao enviar foto:", uploadError.message);
-    return { error: "Não foi possível enviar a foto. Tente novamente." };
-  }
+  const fotoEnviada = await enviarFoto(admin, foto);
+  if ("error" in fotoEnviada) return fotoEnviada;
+  const caminhoFoto = fotoEnviada.caminho;
 
   async function desfazer(associadoId?: string) {
     if (associadoId) await admin.from("associados").delete().eq("id", associadoId);

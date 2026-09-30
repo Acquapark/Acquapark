@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { QRCodeCanvas } from "qrcode.react";
 import { Download, Printer, RefreshCw, Waves } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { carregarFoto, desenharAvatar, iniciaisDoNome } from "@/lib/credencial-foto";
 import { Badge } from "@/components/ui/Badge";
 import { AssociadoFormState } from "../form-types";
 import { Plano } from "@/types";
@@ -17,6 +18,7 @@ export function StepCredencial({
   planos,
   codigo,
   onRegenerate,
+  fotoUrl,
 }: {
   form: AssociadoFormState;
   numero?: string;
@@ -25,6 +27,8 @@ export function StepCredencial({
   codigo?: string | null;
   /** Quando fornecido, habilita o botão "Regenerar credencial" com persistência real. */
   onRegenerate?: () => Promise<void>;
+  /** URL (assinada) da foto do associado; sem ela, mostra as iniciais. */
+  fotoUrl?: string | null;
 }) {
   const plano = planos.find((p) => p.id === form.planoId);
   const qrCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -35,88 +39,92 @@ export function StepCredencial({
   // que o servidor resolve e valida no momento da leitura.
   const credencialId = codigo ?? `AQP-${numero ?? "PREVIEW"}`;
   const isPreview = !codigo;
-  const iniciais = form.nome ? form.nome.split(" ").map((n) => n[0]).slice(0, 2).join("") : "??";
+  const iniciais = iniciaisDoNome(form.nome);
 
-  function handleDownload() {
+  function montarCanvas(qrCanvas: HTMLCanvasElement, foto: HTMLImageElement | null) {
+    const canvas = document.createElement("canvas");
+    canvas.width = CARD_W;
+    canvas.height = CARD_H;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return canvas;
+
+    const radius = 32;
+    ctx.beginPath();
+    ctx.moveTo(radius, 0);
+    ctx.arcTo(CARD_W, 0, CARD_W, CARD_H, radius);
+    ctx.arcTo(CARD_W, CARD_H, 0, CARD_H, radius);
+    ctx.arcTo(0, CARD_H, 0, 0, radius);
+    ctx.arcTo(0, 0, CARD_W, 0, radius);
+    ctx.closePath();
+    ctx.clip();
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, CARD_H);
+    gradient.addColorStop(0, "#2563eb");
+    gradient.addColorStop(1, "#1e40af");
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, CARD_W, CARD_H);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+
+    ctx.font = "700 24px system-ui, sans-serif";
+    ctx.fillText("AQUA PARK", CARD_W / 2, 70);
+
+    desenharAvatar(ctx, { foto, iniciais, cx: CARD_W / 2, cy: 190, raio: 80 });
+    ctx.fillStyle = "#ffffff";
+    ctx.textAlign = "center";
+
+    ctx.font = "700 26px system-ui, sans-serif";
+    ctx.fillText((form.nome || "Nome do associado").toUpperCase(), CARD_W / 2, 330);
+
+    ctx.font = "400 20px system-ui, sans-serif";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    ctx.fillText(`Nº ${numero ?? "—"}`, CARD_W / 2, 365);
+    ctx.fillText(plano ? `Plano ${plano.nome}` : "Plano não selecionado", CARD_W / 2, 395);
+
+    const qrSize = 260;
+    const qrX = (CARD_W - qrSize) / 2;
+    const qrY = 430;
+    const pad = 20;
+    ctx.fillStyle = "#ffffff";
+    ctx.beginPath();
+    const r = 12;
+    const bx = qrX - pad;
+    const by = qrY - pad;
+    const bw = qrSize + pad * 2;
+    const bh = qrSize + pad * 2;
+    ctx.moveTo(bx + r, by);
+    ctx.arcTo(bx + bw, by, bx + bw, by + bh, r);
+    ctx.arcTo(bx + bw, by + bh, bx, by + bh, r);
+    ctx.arcTo(bx, by + bh, bx, by, r);
+    ctx.arcTo(bx, by, bx + bw, by, r);
+    ctx.closePath();
+    ctx.fill();
+    ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
+
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "600 18px system-ui, sans-serif";
+    ctx.fillText("● ASSOCIAÇÃO ATIVA", CARD_W / 2, qrY + qrSize + pad + 50);
+
+    return canvas;
+  }
+
+  async function handleDownload() {
     const qrCanvas = qrCanvasRef.current;
     if (!qrCanvas) return;
     setDownloading(true);
     try {
-      const canvas = document.createElement("canvas");
-      canvas.width = CARD_W;
-      canvas.height = CARD_H;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-
-      const radius = 32;
-      ctx.beginPath();
-      ctx.moveTo(radius, 0);
-      ctx.arcTo(CARD_W, 0, CARD_W, CARD_H, radius);
-      ctx.arcTo(CARD_W, CARD_H, 0, CARD_H, radius);
-      ctx.arcTo(0, CARD_H, 0, 0, radius);
-      ctx.arcTo(0, 0, CARD_W, 0, radius);
-      ctx.closePath();
-      ctx.clip();
-
-      const gradient = ctx.createLinearGradient(0, 0, 0, CARD_H);
-      gradient.addColorStop(0, "#2563eb");
-      gradient.addColorStop(1, "#1e40af");
-      ctx.fillStyle = gradient;
-      ctx.fillRect(0, 0, CARD_W, CARD_H);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.textAlign = "center";
-
-      ctx.font = "700 24px system-ui, sans-serif";
-      ctx.fillText("AQUA PARK", CARD_W / 2, 70);
-
-      ctx.beginPath();
-      ctx.arc(CARD_W / 2, 190, 80, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255,0.1)";
-      ctx.fill();
-      ctx.lineWidth = 4;
-      ctx.strokeStyle = "rgba(255,255,255,0.4)";
-      ctx.stroke();
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "600 44px system-ui, sans-serif";
-      ctx.fillText(iniciais, CARD_W / 2, 205);
-
-      ctx.font = "700 26px system-ui, sans-serif";
-      ctx.fillText((form.nome || "Nome do associado").toUpperCase(), CARD_W / 2, 330);
-
-      ctx.font = "400 20px system-ui, sans-serif";
-      ctx.fillStyle = "rgba(255,255,255,0.85)";
-      ctx.fillText(`Nº ${numero ?? "—"}`, CARD_W / 2, 365);
-      ctx.fillText(plano ? `Plano ${plano.nome}` : "Plano não selecionado", CARD_W / 2, 395);
-
-      const qrSize = 260;
-      const qrX = (CARD_W - qrSize) / 2;
-      const qrY = 430;
-      const pad = 20;
-      ctx.fillStyle = "#ffffff";
-      ctx.beginPath();
-      const r = 12;
-      const bx = qrX - pad;
-      const by = qrY - pad;
-      const bw = qrSize + pad * 2;
-      const bh = qrSize + pad * 2;
-      ctx.moveTo(bx + r, by);
-      ctx.arcTo(bx + bw, by, bx + bw, by + bh, r);
-      ctx.arcTo(bx + bw, by + bh, bx, by + bh, r);
-      ctx.arcTo(bx, by + bh, bx, by, r);
-      ctx.arcTo(bx, by, bx + bw, by, r);
-      ctx.closePath();
-      ctx.fill();
-      ctx.drawImage(qrCanvas, qrX, qrY, qrSize, qrSize);
-
-      ctx.fillStyle = "#ffffff";
-      ctx.font = "600 18px system-ui, sans-serif";
-      ctx.fillText("● ASSOCIAÇÃO ATIVA", CARD_W / 2, qrY + qrSize + pad + 50);
-
+      const foto = fotoUrl ? await carregarFoto(fotoUrl) : null;
+      let dataUrl: string;
+      try {
+        dataUrl = montarCanvas(qrCanvas, foto).toDataURL("image/png");
+      } catch {
+        // Se o navegador bloquear a foto no canvas, o PNG sai com as iniciais.
+        dataUrl = montarCanvas(qrCanvas, null).toDataURL("image/png");
+      }
       const link = document.createElement("a");
       link.download = `credencial-${numero ?? "associado"}.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = dataUrl;
       link.click();
     } finally {
       setDownloading(false);
@@ -145,8 +153,13 @@ export function StepCredencial({
           AQUA PARK
         </div>
 
-        <div className="mx-auto mt-4 flex h-20 w-20 items-center justify-center rounded-full border-2 border-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.1)] text-2xl font-semibold">
-          {iniciais}
+        <div className="mx-auto mt-4 flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border-2 border-[rgba(255,255,255,0.4)] bg-[rgba(255,255,255,0.1)] text-2xl font-semibold">
+          {fotoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element -- URL assinada temporária do Supabase Storage
+            <img src={fotoUrl} alt={form.nome} className="h-full w-full object-cover" />
+          ) : (
+            iniciais
+          )}
         </div>
 
         <p className="mt-3 text-sm font-semibold uppercase">{form.nome || "Nome do associado"}</p>

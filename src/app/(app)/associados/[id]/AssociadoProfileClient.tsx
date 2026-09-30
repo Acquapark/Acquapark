@@ -21,7 +21,13 @@ import { AcessoTabContent } from "@/components/associados/AcessoTabContent";
 import { Associado, AcessoAssociado, AssociadoStatus, Contrato, Plano } from "@/types";
 import { ContratoGerado, ModeloContrato } from "@/lib/supabase/contratos";
 import { useAcesso } from "@/components/providers/AcessoProvider";
-import { ensureCredencial, regenerarCredencial, updateAssociado, updateAssociadoStatus } from "@/app/(app)/associados/actions";
+import {
+  ensureCredencial,
+  regenerarCredencial,
+  salvarFotoAssociado,
+  updateAssociado,
+  updateAssociadoStatus,
+} from "@/app/(app)/associados/actions";
 
 const TAB_KEYS = ["dados", "plano", "dependentes", "contrato", "financeiro", "acessos", "credencial", "acesso"] as const;
 const TAB_LABELS: Record<(typeof TAB_KEYS)[number], string> = {
@@ -132,6 +138,14 @@ export function AssociadoProfileClient({
     setForm((prev) => ({ ...prev, ...patch }));
   }
 
+  // Foto escolhida no modo edição — só é enviada ao salvar.
+  const [novaFoto, setNovaFoto] = useState<{ blob: Blob; preview: string } | null>(null);
+
+  function descartarNovaFoto() {
+    if (novaFoto) URL.revokeObjectURL(novaFoto.preview);
+    setNovaFoto(null);
+  }
+
   function handleStartEdit() {
     setForm(buildForm(associado, planoId));
     setError("");
@@ -141,6 +155,7 @@ export function AssociadoProfileClient({
 
   function handleCancelEdit() {
     setForm(buildForm(associado, planoId));
+    descartarNovaFoto();
     setError("");
     setEditMode(false);
   }
@@ -153,11 +168,24 @@ export function AssociadoProfileClient({
     setSaving(true);
     setError("");
     const result = await updateAssociado(associado.id, form);
-    setSaving(false);
     if (result.error) {
+      setSaving(false);
       setError(result.error);
       return;
     }
+    if (novaFoto) {
+      const formData = new FormData();
+      formData.set("foto", novaFoto.blob, "foto.jpg");
+      const fotoResult = await salvarFotoAssociado(associado.id, formData);
+      if ("error" in fotoResult) {
+        setSaving(false);
+        setError(`Dados salvos, mas a foto não: ${fotoResult.error}`);
+        router.refresh();
+        return;
+      }
+      descartarNovaFoto();
+    }
+    setSaving(false);
     setEditMode(false);
     router.refresh();
   }
@@ -299,7 +327,18 @@ export function AssociadoProfileClient({
           />
         </div>
         <div className="p-5">
-          {activeTab === "dados" && <StepDadosBasicos form={form} update={update} disabled={!editMode} />}
+          {activeTab === "dados" && (
+            <StepDadosBasicos
+              form={form}
+              update={update}
+              disabled={!editMode}
+              fotoPreview={novaFoto?.preview ?? associado.fotoUrl}
+              onFoto={(blob, preview) => {
+                descartarNovaFoto();
+                setNovaFoto({ blob, preview });
+              }}
+            />
+          )}
           {activeTab === "dependentes" && (
             <ProfileDependentesTab associadoId={associado.id} dependentes={associado.dependentes} plano={planoAtual} />
           )}
@@ -322,6 +361,7 @@ export function AssociadoProfileClient({
               numero={associado.numero}
               planos={planos}
               codigo={codigo}
+              fotoUrl={associado.fotoUrl}
               onRegenerate={pode("credenciais.editar") ? handleRegenerateCredencial : undefined}
             />
           )}

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { getPortalContext } from "@/lib/supabase/portal";
 import { getAssociadoById } from "@/lib/supabase/associados";
 import { PortalShell } from "@/components/portal/PortalShell";
@@ -15,6 +16,14 @@ export default async function PortalCredencialPage() {
 
   const { associado, credencialCodigo } = result;
 
+  // A foto fica em bucket privado que só a equipe lê: o servidor gera uma URL
+  // temporária — só da foto do próprio associado da sessão (ctx acima).
+  let fotoUrl: string | null = null;
+  if (associado.fotoUrl) {
+    const { data } = await createAdminClient().storage.from("associados-fotos").createSignedUrl(associado.fotoUrl, 60 * 60);
+    fotoUrl = data?.signedUrl ?? null;
+  }
+
   return (
     <PortalShell associadoNome={associado.nome}>
       <h1 className="mb-4 text-lg font-semibold text-gray-900">Minha Credencial</h1>
@@ -26,6 +35,7 @@ export default async function PortalCredencialPage() {
           planoNome={associado.plano === "—" ? null : associado.plano}
           codigo={credencialCodigo}
           ativa={associado.status === "Ativo"}
+          fotoUrl={fotoUrl}
         />
       ) : (
         <div className="rounded-[10px] border border-gray-200 bg-white p-6 text-center shadow-sm">

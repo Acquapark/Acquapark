@@ -8,6 +8,7 @@ import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
 import { getModeloById } from "@/lib/supabase/contratos";
 import { criarLoginDoAssociado } from "./acesso-portal";
+import { FOTO_TAMANHO_MAXIMO } from "./autocadastro-tipos";
 import { variaveisDoAssociadoUsadas } from "@/lib/contracts/variables";
 
 /*
@@ -281,4 +282,32 @@ export async function criarContratoEMensalidades(
   }
 
   return { contratoId: contrato.id as string, numero: contrato.numero as string };
+}
+
+export const BUCKET_FOTOS = "associados-fotos";
+const TIPOS_FOTO: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
+
+/** Confere a foto vinda de um FormData (autocadastro e painel usam as mesmas regras). */
+export function validarFoto(foto: FormDataEntryValue | null): { error: string } | { arquivo: File; extensao: string } {
+  if (!(foto instanceof File) || foto.size === 0) return { error: "A foto é obrigatória." };
+  const extensao = TIPOS_FOTO[foto.type];
+  if (!extensao) return { error: "Envie a foto em JPG, PNG ou WEBP." };
+  if (foto.size > FOTO_TAMANHO_MAXIMO) return { error: "A foto ficou muito grande. Tente outra imagem." };
+  return { arquivo: foto, extensao };
+}
+
+/** Guarda a foto no bucket privado e devolve o caminho a gravar em `foto_url`. */
+export async function enviarFoto(
+  supabase: SupabaseClient,
+  foto: { arquivo: File; extensao: string },
+): Promise<{ error: string } | { caminho: string }> {
+  const caminho = `${crypto.randomUUID()}.${foto.extensao}`;
+  const { error } = await supabase.storage
+    .from(BUCKET_FOTOS)
+    .upload(caminho, Buffer.from(await foto.arquivo.arrayBuffer()), { contentType: foto.arquivo.type });
+  if (error) {
+    console.error("Falha ao enviar foto do associado:", error.message);
+    return { error: "Não foi possível enviar a foto. Tente novamente." };
+  }
+  return { caminho };
 }

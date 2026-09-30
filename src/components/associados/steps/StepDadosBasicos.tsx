@@ -1,21 +1,48 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { AssociadoFormState } from "../form-types";
-import { formatCEP, formatCPF, formatPhone, formatRG } from "@/lib/utils";
+import { cn, formatCEP, formatCPF, formatPhone, formatRG } from "@/lib/utils";
+import { comprimirFoto } from "@/lib/foto-associado";
 
 export function StepDadosBasicos({
   form,
   update,
   disabled = false,
+  fotoPreview,
+  onFoto,
 }: {
   form: AssociadoFormState;
   update: (patch: Partial<AssociadoFormState>) => void;
   disabled?: boolean;
+  /** Foto atual (URL assinada) ou a recém-escolhida (blob:). */
+  fotoPreview?: string | null;
+  /** Recebe a foto já reduzida; sem este callback a foto é só exibida. */
+  onFoto?: (blob: Blob, preview: string) => void;
 }) {
   const [buscandoCep, setBuscandoCep] = useState(false);
+  const [processandoFoto, setProcessandoFoto] = useState(false);
+  const [erroFoto, setErroFoto] = useState("");
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const podeTrocarFoto = !!onFoto && !disabled;
+
+  async function handleFoto(e: React.ChangeEvent<HTMLInputElement>) {
+    const arquivo = e.target.files?.[0];
+    e.target.value = "";
+    if (!arquivo || !onFoto) return;
+    setErroFoto("");
+    setProcessandoFoto(true);
+    try {
+      const blob = await comprimirFoto(arquivo);
+      onFoto(blob, URL.createObjectURL(blob));
+    } catch {
+      setErroFoto("Não foi possível usar essa imagem.");
+    } finally {
+      setProcessandoFoto(false);
+    }
+  }
 
   async function handleCepBlur() {
     const digits = form.cep.replace(/\D/g, "");
@@ -42,9 +69,38 @@ export function StepDadosBasicos({
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-5">
-        <div className="flex h-24 w-24 shrink-0 flex-col items-center justify-center gap-1 rounded-[6px] border border-dashed border-gray-300 bg-gray-50 text-gray-400 hover:border-primary-400 hover:text-primary-500 cursor-pointer">
-          <Camera size={20} />
-          <span className="text-[10px] font-medium">Foto</span>
+        <div className="shrink-0">
+          <button
+            type="button"
+            onClick={() => fotoInputRef.current?.click()}
+            disabled={!podeTrocarFoto || processandoFoto}
+            className={cn(
+              "flex h-24 w-24 flex-col items-center justify-center gap-1 overflow-hidden rounded-[6px] border border-dashed border-gray-300 bg-gray-50 text-gray-400",
+              podeTrocarFoto && "cursor-pointer hover:border-primary-400 hover:text-primary-500",
+            )}
+            title={podeTrocarFoto ? "Tirar ou escolher a foto" : undefined}
+          >
+            {fotoPreview ? (
+              // eslint-disable-next-line @next/next/no-img-element -- prévia local (blob:) ou URL assinada do Storage
+              <img src={fotoPreview} alt="Foto do associado" className="h-full w-full object-cover" />
+            ) : (
+              <>
+                <Camera size={20} />
+                <span className="text-[10px] font-medium">{processandoFoto ? "Processando..." : "Foto"}</span>
+              </>
+            )}
+          </button>
+          {podeTrocarFoto && fotoPreview && (
+            <button
+              type="button"
+              onClick={() => fotoInputRef.current?.click()}
+              className="mt-1 w-24 text-center text-[11px] font-medium text-primary-600"
+            >
+              Trocar foto
+            </button>
+          )}
+          {erroFoto && <p className="mt-1 w-24 text-[11px] text-danger-600">{erroFoto}</p>}
+          <input ref={fotoInputRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handleFoto} />
         </div>
 
         <div className="grid flex-1 grid-cols-1 gap-4 sm:grid-cols-3">
