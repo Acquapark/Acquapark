@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { apagarLogins, loginsDoAssociado } from "@/lib/associados/acesso-portal";
 import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
@@ -135,6 +137,8 @@ export async function deleteAssociado(id: string) {
   const negado = await exigirPermissao("associados.excluir");
   if (negado) return { error: negado.error };
   const supabase = await createClient();
+  const admin = createAdminClient();
+  const logins = await loginsDoAssociado(admin, id);
   const { error } = await supabase.from("associados").delete().eq("id", id);
   if (error) {
     if (error.code === "23503") {
@@ -142,6 +146,9 @@ export async function deleteAssociado(id: string) {
     }
     return { error: error.message };
   }
+  // O login do Portal não sai junto com o associado — sem isto ele ficava
+  // órfão e impedia um novo cadastro com o mesmo e-mail.
+  await apagarLogins(admin, logins);
   revalidatePath("/associados");
   return { success: true };
 }

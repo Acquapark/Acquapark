@@ -7,6 +7,7 @@ import { gerarContratoParaAssociado, getModeloPadrao } from "@/lib/contracts/ger
 import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
 import { getModeloById } from "@/lib/supabase/contratos";
+import { criarLoginDoAssociado } from "./acesso-portal";
 import { variaveisDoAssociadoUsadas } from "@/lib/contracts/variables";
 
 /*
@@ -95,26 +96,9 @@ export async function criarAcessoAutomatico(associadoId: string, email: string, 
   try {
     if (senha.length < 6) return false;
 
-    const admin = createAdminClient();
-    const { data: created, error: authError } = await admin.auth.admin.createUser({
-      email,
-      password: senha,
-      email_confirm: true,
-    });
-    if (authError || !created.user) {
-      console.error("Acesso automático ao Portal não criado:", authError?.message);
-      return false;
-    }
-
-    const { error: linkError } = await admin.from("associado_acessos").insert({
-      id: created.user.id,
-      associado_id: associadoId,
-      email,
-      status: "Ativo",
-    });
-    if (linkError) {
-      await admin.auth.admin.deleteUser(created.user.id);
-      console.error("Acesso automático ao Portal não vinculado:", linkError.message);
+    const result = await criarLoginDoAssociado(createAdminClient(), { associadoId, email, senha });
+    if ("error" in result) {
+      console.error("Acesso automático ao Portal não criado:", result.error);
       return false;
     }
     return true;

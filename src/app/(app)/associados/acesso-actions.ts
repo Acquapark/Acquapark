@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
+import { criarLoginDoAssociado } from "@/lib/associados/acesso-portal";
 
 /**
  * A service role key ignora RLS — então as ações abaixo (que a usam para
@@ -28,27 +29,8 @@ export async function criarAcessoAssociado(associadoId: string, email: string, s
   if (!email) return { error: "Informe o e-mail de acesso." };
   if (senha.length < 6) return { error: "A senha deve ter pelo menos 6 caracteres." };
 
-  const admin = createAdminClient();
-
-  const { data: created, error: authError } = await admin.auth.admin.createUser({
-    email,
-    password: senha,
-    email_confirm: true,
-  });
-  if (authError || !created.user) {
-    return { error: authError?.message ?? "Não foi possível criar o acesso." };
-  }
-
-  const { error: linkError } = await admin.from("associado_acessos").insert({
-    id: created.user.id,
-    associado_id: associadoId,
-    email,
-    status: "Ativo",
-  });
-  if (linkError) {
-    await admin.auth.admin.deleteUser(created.user.id);
-    return { error: linkError.message };
-  }
+  const result = await criarLoginDoAssociado(createAdminClient(), { associadoId, email, senha });
+  if ("error" in result) return { error: result.error };
 
   revalidatePath(`/associados/${associadoId}`);
   return { success: true };
