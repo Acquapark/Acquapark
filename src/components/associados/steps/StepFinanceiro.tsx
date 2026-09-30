@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { CreditCard, Pencil, QrCode, Receipt, RefreshCw, XCircle } from "lucide-react";
+import { CreditCard, Pencil, QrCode, Receipt, RefreshCw, Trash2, XCircle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
@@ -13,6 +13,7 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { RegistrarPagamentoModal } from "@/components/financeiro/RegistrarPagamentoModal";
 import { CobrarModal, MensalidadeParaCobranca } from "@/components/financeiro/CobrarModal";
+import { ExcluirRecebimentoModal, RecebimentoParaExcluir } from "@/components/financeiro/ExcluirRecebimentoModal";
 import { alterarVencimentoMensalidade, cancelarMensalidade, sincronizarMensalidade } from "@/app/(app)/financeiro/actions";
 
 const EDITAVEL = new Set(["Pendente", "Vencido", "Em processamento"]);
@@ -40,6 +41,7 @@ export function StepFinanceiro({
   const [erroCancelar, setErroCancelar] = useState("");
 
   const [sincronizandoId, setSincronizandoId] = useState<string | null>(null);
+  const [excluindoRecebimento, setExcluindoRecebimento] = useState<RecebimentoParaExcluir | null>(null);
 
   function iniciarEdicaoVencimento(m: Mensalidade) {
     if (!pode("contas_receber.editar") || !EDITAVEL.has(m.status)) return;
@@ -189,6 +191,24 @@ export function StepFinanceiro({
                         Cancelar
                       </Button>
                     )}
+                    {m.status === "Pago" && pode("recebimentos.excluir") && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setExcluindoRecebimento({
+                            tipo: "mensalidade",
+                            id: m.id,
+                            descricao: m.numeroParcela ? `Parcela ${m.numeroParcela}/${m.totalParcelas}` : "Mensalidade",
+                            valor: m.valor,
+                            ehMensalidade: true,
+                          })
+                        }
+                      >
+                        <Trash2 size={13} />
+                        Excluir pagamento
+                      </Button>
+                    )}
                   </div>
                 </Td>
               </Tr>
@@ -239,6 +259,11 @@ export function StepFinanceiro({
         onClose={() => setRegistrando(null)}
       />
       <CobrarModal mensalidade={cobrando} onClose={() => setCobrando(null)} />
+      <ExcluirRecebimentoModal
+        key={excluindoRecebimento?.id ?? "excluir-recebimento"}
+        alvo={excluindoRecebimento}
+        onClose={() => setExcluindoRecebimento(null)}
+      />
 
       <Modal open={!!cancelando} onClose={() => setCancelando(null)} size="md">
         <ModalHeader title="Cancelar mensalidade?" onClose={() => setCancelando(null)} />

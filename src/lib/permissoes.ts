@@ -53,6 +53,28 @@ const RELATORIOS_PERMISSAO = [
   { chave: "relatorio_acessos", rotulo: "Histórico de acessos" },
 ] as const;
 
+/** Cards do Dashboard — cada um é uma permissão, para o grupo ver só o que interessa. */
+export const DASHBOARD_CARDS = [
+  { id: "entradas_hoje", rotulo: "Entradas hoje" },
+  { id: "associados_ativos", rotulo: "Associados ativos" },
+  { id: "ingressos_hoje", rotulo: "Ingressos vendidos hoje" },
+  { id: "faturamento_mes", rotulo: "Faturamento do mês" },
+  { id: "mensalidades_aberto", rotulo: "Mensalidades em aberto" },
+  { id: "grafico_entradas", rotulo: "Gráfico de entradas na semana" },
+  { id: "grafico_faturamento", rotulo: "Gráfico de faturamento" },
+  { id: "entradas_recentes", rotulo: "Entradas recentes" },
+  { id: "ultimos_pagamentos", rotulo: "Últimos pagamentos" },
+  { id: "mensalidades_atraso", rotulo: "Mensalidades em atraso" },
+  { id: "ingressos_recentes", rotulo: "Ingressos vendidos recentemente" },
+  { id: "despesas_proximas", rotulo: "Despesas próximas" },
+] as const;
+
+export type DashboardCardId = (typeof DASHBOARD_CARDS)[number]["id"];
+
+export function permissaoDoCard(id: DashboardCardId): string {
+  return `dashboard_${id}.visualizar`;
+}
+
 /** Relatório (id em src/lib/relatorios/tipos.ts) → recurso de permissão. */
 export function permissaoDoRelatorio(id: string): string {
   return `relatorio_${id}.visualizar`;
@@ -62,7 +84,15 @@ export const MODULOS: ModuloDef[] = [
   {
     chave: "dashboard",
     rotulo: "Dashboard",
-    recursos: [{ chave: "dashboard", rotulo: "Painel geral", acoes: [A.visualizar] }],
+    recursos: [
+      {
+        chave: "dashboard",
+        rotulo: "Painel geral",
+        descricao: "Abre o Dashboard. Os cards que o grupo vê são escolhidos abaixo.",
+        acoes: [A.visualizar],
+      },
+      ...DASHBOARD_CARDS.map((c) => ({ chave: `dashboard_${c.id}`, rotulo: `Card: ${c.rotulo}`, acoes: [A.visualizar] })),
+    ],
   },
   {
     chave: "associados",
@@ -173,7 +203,18 @@ export const MODULOS: ModuloDef[] = [
           { chave: "cancelar", rotulo: "Cancelar mensalidade" },
         ],
       },
-      { chave: "recebimentos", rotulo: "Recebimentos", acoes: [A.visualizar] },
+      {
+        chave: "recebimentos",
+        rotulo: "Recebimentos",
+        acoes: [
+          A.visualizar,
+          {
+            chave: "excluir",
+            rotulo: "Excluir / desfazer recebimento",
+            descricao: "Apaga o pagamento, mesmo de mensalidade já paga, e a parcela volta a ficar em aberto.",
+          },
+        ],
+      },
       {
         chave: "despesas",
         rotulo: "Despesas",

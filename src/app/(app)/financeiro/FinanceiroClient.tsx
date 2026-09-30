@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, CreditCard, Plus, QrCode, Search, TrendingDown, TrendingUp, Undo2, Wallet } from "lucide-react";
+import { AlertTriangle, CreditCard, Plus, QrCode, Search, Trash2, TrendingDown, TrendingUp, Undo2, Wallet } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { useAcesso } from "@/components/providers/AcessoProvider";
@@ -19,6 +19,7 @@ import { Despesa } from "@/types";
 import { RegistrarPagamentoModal, MensalidadeParaBaixa } from "@/components/financeiro/RegistrarPagamentoModal";
 import { CobrarModal, MensalidadeParaCobranca } from "@/components/financeiro/CobrarModal";
 import { DespesaModal, PagarDespesaModal } from "@/components/financeiro/DespesaModals";
+import { ExcluirRecebimentoModal, RecebimentoParaExcluir } from "@/components/financeiro/ExcluirRecebimentoModal";
 import { desfazerPagamentoDespesa, excluirDespesa } from "./actions";
 
 type TabKey = "receber" | "recebimentos" | "despesas" | "fluxo";
@@ -71,6 +72,7 @@ export function FinanceiroClient({
   // Recebimentos
   const [filtroForma, setFiltroForma] = useState("Todas");
   const [filtroTipo, setFiltroTipo] = useState("Todos");
+  const [excluindoRecebimento, setExcluindoRecebimento] = useState<RecebimentoParaExcluir | null>(null);
 
   // Despesas
   const [filtroDespesa, setFiltroDespesa] = useState("Todas");
@@ -356,10 +358,13 @@ export function FinanceiroClient({
                   <Th>Valor</Th>
                   <Th>Forma de pagamento</Th>
                   <Th>Responsável</Th>
+                  {pode("recebimentos.excluir") && <Th className="w-10" />}
                 </tr>
               </Thead>
               <Tbody>
-                {recebimentosFiltrados.length === 0 && <TableEmpty colSpan={5} message="Nenhum recebimento no período." />}
+                {recebimentosFiltrados.length === 0 && (
+                  <TableEmpty colSpan={pode("recebimentos.excluir") ? 6 : 5} message="Nenhum recebimento no período." />
+                )}
                 {recebimentosFiltrados.map((r) => (
                   <Tr key={r.id}>
                     <Td>{formatDateTime(r.data)}</Td>
@@ -374,6 +379,33 @@ export function FinanceiroClient({
                     <Td className={r.valor < 0 ? "font-medium text-danger-600" : ""}>{formatCurrency(r.valor)}</Td>
                     <Td>{r.forma}</Td>
                     <Td>{r.responsavel}</Td>
+                    {pode("recebimentos.excluir") && (
+                      <Td>
+                        {r.tipo === "Mensalidade" || r.tipo === "Outro" ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setExcluindoRecebimento({
+                                tipo: "pagamento",
+                                id: r.id,
+                                descricao: r.origem,
+                                valor: r.valor,
+                                ehMensalidade: r.tipo === "Mensalidade",
+                              })
+                            }
+                            className="rounded-[4px] p-1.5 text-gray-400 hover:bg-danger-50 hover:text-danger-600"
+                            title="Excluir recebimento"
+                            aria-label="Excluir recebimento"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        ) : (
+                          <span className="text-gray-300" title="Recebimento de ingresso: exclua a venda pela Bilheteria">
+                            —
+                          </span>
+                        )}
+                      </Td>
+                    )}
                   </Tr>
                 ))}
               </Tbody>
@@ -565,6 +597,11 @@ export function FinanceiroClient({
 
       <RegistrarPagamentoModal key={baixando?.id ?? "baixa"} mensalidade={baixando} onClose={() => setBaixando(null)} />
       <CobrarModal key={cobrando?.id ?? "cobrar"} mensalidade={cobrando} onClose={() => setCobrando(null)} />
+      <ExcluirRecebimentoModal
+        key={excluindoRecebimento?.id ?? "excluir-recebimento"}
+        alvo={excluindoRecebimento}
+        onClose={() => setExcluindoRecebimento(null)}
+      />
       <DespesaModal
         key={despesaModalKey}
         open={despesaModalOpen}

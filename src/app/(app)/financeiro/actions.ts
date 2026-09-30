@@ -322,3 +322,99 @@ export async function excluirDespesa(id: string) {
   revalidate();
   return { success: true };
 }
+
+/**
+ * Desfaz o pagamento de uma mensalidade: apaga os lançamentos em `pagamentos`
+ * e a parcela volta a ficar em aberto (o status "Vencido" é recalculado pela
+ * data na leitura). Se o pagamento veio confirmado pelo gateway, a cobrança
+ * antiga é desvinculada — um reenvio do webhook dela não pode marcar a
+ * parcela como paga de novo, e uma nova cobrança gera outra na Asaas. O
+ * dinheiro recebido pelo gateway NÃO é devolvido aqui (isso é na Asaas).
+ */
+async function desfazerPagamentoDaMensalidade(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  mensalidadeId: string,
+): Promise<{ error: string } | { associadoId: string }> {
+  const { data: mensalidade, error: fetchError } = await supabase
+    .from("mensalidades")
+    .select("id, associado_id, status, numero_parcela, gateway_charge_id")
+    .eq("id", mensalidadeId)
+    .maybeSingle();
+  if (fetchError || !mensalidade) return { error: "Mensalidade não encontrada." };
+  if (mensalidade.status !== "Pago") return { error: "Esta mensalidade não está paga." };
+
+  const { data: removidos, error: deleteError } = await supabase
+    .from("pagamentos")
+    .delete()
+    .eq("mensalidade_id", mensalidadeId)
+    .select("referencia");
+  if (deleteError) return { error: deleteError.message };
+
+  const chargeId = mensalidade.gateway_charge_id as string | null;
+  const pagoPeloGateway = !!chargeId && (removidos ?? []).some((p) => p.referencia === chargeId);
+
+  const { error: updateError } = await supabase
+    .from("mensalidades")
+    .update({
+      status: "Pendente",
+      pago_em: null,
+      forma_pagamento: null,
+      ...(pagoPeloGateway ? { gateway_charge_id: null, asaas_status: null, asaas_billing_type: null } : {}),
+    })
+    .eq("id", mensalidadeId);
+  if (updateError) return { error: updateError.message };
+
+  // A 1ª parcela paga é o que ativa o associado (ativarAssociadoSeParcela1Paga):
+  // sem ela, ele volta a aguardar o pagamento.
+  if (mensalidade.numero_parcela === 1) {
+    await supabase.from("associados").update({ status: "Pendente" }).eq("id", mensalidade.associado_id).eq("status", "Ativo");
+  }
+
+  return { associadoId: mensalidade.associado_id as string };
+}
+
+/** Excluir um lançamento da aba Recebimentos, mesmo de parcela já paga. */
+export async function excluirRecebimento(pagamentoId: string): Promise<{ error: string } | { success: true }> {
+  const negado = await exigirPermissao("recebimentos.excluir");
+  if (negado) return { error: negado.error };
+
+  const supabase = await createClient();
+  const { data: pagamento, error: fetchError } = await supabase
+    .from("pagamentos")
+    .select("id, mensalidade_id, ingresso_id")
+    .eq("id", pagamentoId)
+    .maybeSingle();
+  if (fetchError || !pagamento) return { error: "Recebimento não encontrado." };
+
+  // Venda de ingresso tem ingresso, caixa e estorno amarrados ao lançamento:
+  // quem desfaz é a exclusão da venda na Bilheteria.
+  if (pagamento.ingresso_id) return { error: "Recebimento de ingresso: exclua a venda pela Bilheteria." };
+
+  if (pagamento.mensalidade_id) {
+    const result = await desfazerPagamentoDaMensalidade(supabase, pagamento.mensalidade_id as string);
+    if ("error" in result) return result;
+    revalidatePath(`/associados/${result.associadoId}`);
+  } else {
+    const { error } = await supabase.from("pagamentos").delete().eq("id", pagamentoId);
+    if (error) return { error: error.message };
+  }
+
+  revalidate();
+  revalidatePath("/dashboard");
+  return { success: true };
+}
+
+/** Mesmo que `excluirRecebimento`, a partir da parcela (aba Financeiro do associado). */
+export async function desfazerPagamentoMensalidade(mensalidadeId: string): Promise<{ error: string } | { success: true }> {
+  const negado = await exigirPermissao("recebimentos.excluir");
+  if (negado) return { error: negado.error };
+
+  const supabase = await createClient();
+  const result = await desfazerPagamentoDaMensalidade(supabase, mensalidadeId);
+  if ("error" in result) return result;
+
+  revalidatePath(`/associados/${result.associadoId}`);
+  revalidate();
+  revalidatePath("/dashboard");
+  return { success: true };
+}
