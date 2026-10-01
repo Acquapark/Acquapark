@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPortalContext } from "@/lib/supabase/portal";
@@ -7,6 +8,7 @@ import { gatewayReal, paymentGateway } from "@/lib/gateway";
 import { Pagador } from "@/lib/gateway/types";
 import { processarConfirmacaoPagamento } from "@/lib/pagamento-webhook";
 import { FormaPagamento } from "@/types";
+import { getTermoVigente, registrarAceite } from "@/lib/termos";
 
 /**
  * Cria a cobrança no gateway e grava o charge_id na mensalidade. A mensalidade
@@ -137,4 +139,25 @@ export async function registrarUltimoAcessoPortal() {
 
   const admin = createAdminClient();
   await admin.from("associado_acessos").update({ ultimo_acesso: new Date().toISOString() }).eq("id", user.id);
+}
+
+/**
+ * Aceite dos termos de adesão pelo Portal. O associado vem da sessão (nunca do
+ * cliente) e o aceite só vale para a versão em vigor — se uma nova foi
+ * publicada enquanto ele lia, precisa ler a nova.
+ */
+export async function aceitarTermos(versaoId: string): Promise<{ error: string } | { success: true }> {
+  const supabase = await createClient();
+  const ctx = await getPortalContext(supabase);
+  if (!ctx) return { error: "Sessão expirada. Entre novamente." };
+
+  const vigente = await getTermoVigente(supabase);
+  if (!vigente) return { success: true };
+  if (vigente.id !== versaoId) return { error: "Os termos foram atualizados. Recarregue a página e leia a versão nova." };
+
+  const result = await registrarAceite(createAdminClient(), { associadoId: ctx.associadoId, versaoId, origem: "portal" });
+  if (result.error) return { error: "Não foi possível registrar o aceite. Tente novamente." };
+
+  revalidatePath("/portal", "layout");
+  return { success: true };
 }

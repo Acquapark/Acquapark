@@ -19,6 +19,8 @@ import { StepCredencial } from "@/components/associados/steps/StepCredencial";
 import { ContratosTabContent } from "@/components/associados/ContratosTabContent";
 import { AcessoTabContent } from "@/components/associados/AcessoTabContent";
 import { Associado, AcessoAssociado, AssociadoStatus, Contrato, Plano } from "@/types";
+import type { AceiteTermos } from "@/lib/termos";
+import { formatDateTime } from "@/lib/utils";
 import { ContratoGerado, ModeloContrato } from "@/lib/supabase/contratos";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import {
@@ -102,6 +104,7 @@ export function AssociadoProfileClient({
   modelosAtivos,
   acesso,
   contratoAtivo,
+  termos,
 }: {
   associado: Associado;
   planoId: string | null;
@@ -111,6 +114,8 @@ export function AssociadoProfileClient({
   modelosAtivos: ModeloContrato[];
   acesso: AcessoAssociado | null;
   contratoAtivo: Contrato | null;
+  /** Situação do aceite dos termos de adesão (versaoVigente null = nenhuma versão publicada). */
+  termos: { versaoVigente: number | null; ultimoAceite: AceiteTermos | null };
 }) {
   const router = useRouter();
   const { pode } = useAcesso();
@@ -266,6 +271,23 @@ export function AssociadoProfileClient({
                   {situacaoFinanceira}
                 </span>
               </p>
+              {termos.versaoVigente !== null && (
+                <p className="mt-0.5 text-xs text-gray-500">
+                  Termos de adesão:{" "}
+                  {termos.ultimoAceite?.versao === termos.versaoVigente ? (
+                    <span className="font-medium text-success-700">
+                      aceitou a v{termos.ultimoAceite.versao} em {formatDateTime(termos.ultimoAceite.aceitoEm)} (
+                      {termos.ultimoAceite.origem === "autocadastro" ? "cadastro pela internet" : "Portal"})
+                    </span>
+                  ) : (
+                    <span className="font-medium text-warning-700">
+                      pendente (v{termos.versaoVigente})
+                      {termos.ultimoAceite &&
+                        ` — última aceita: v${termos.ultimoAceite.versao} em ${formatDateTime(termos.ultimoAceite.aceitoEm)}`}
+                    </span>
+                  )}
+                </p>
+              )}
             </div>
           </div>
 

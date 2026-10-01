@@ -256,6 +256,12 @@ export const MODULOS: ModuloDef[] = [
     rotulo: "Configurações",
     recursos: [
       { chave: "parque", rotulo: "Dados do Parque", acoes: [A.visualizar, A.editar] },
+      {
+        chave: "termos",
+        rotulo: "Termos de adesão",
+        descricao: "Texto que o associado aceita no cadastro e no Portal.",
+        acoes: [A.visualizar, { chave: "publicar", rotulo: "Publicar nova versão" }],
+      },
       { chave: "planos", rotulo: "Planos de associados", acoes: [A.visualizar, A.criar, A.editar] },
       { chave: "tipos_ingresso", rotulo: "Tipos de ingresso", acoes: [A.visualizar, A.criar, A.editar, A.excluir] },
       { chave: "regras_acesso", rotulo: "Regras de acesso", acoes: [A.visualizar, A.editar] },
@@ -347,6 +353,7 @@ const RELATORIOS_VISUALIZAR = RELATORIOS_PERMISSAO.map((r) => `${r.chave}.visual
 /** Seções de Configurações → permissão que abre a seção. */
 export const SECOES_CONFIGURACOES = [
   { key: "parque", label: "Dados do Parque", permissao: "parque.visualizar" },
+  { key: "termos", label: "Termos de Adesão", permissao: "termos.visualizar" },
   { key: "usuarios", label: "Usuários", permissao: "usuarios.visualizar" },
   { key: "permissoes", label: "Grupos e Permissões", permissao: "grupos.visualizar" },
   { key: "planos", label: "Planos", permissao: "planos.visualizar" },

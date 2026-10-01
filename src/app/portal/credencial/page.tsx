@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPortalContext } from "@/lib/supabase/portal";
+import { termosPendentes } from "@/lib/termos";
 import { getAssociadoById } from "@/lib/supabase/associados";
 import { PortalShell } from "@/components/portal/PortalShell";
 import { CredencialCard } from "@/components/portal/CredencialCard";
@@ -10,6 +11,8 @@ export default async function PortalCredencialPage() {
   const supabase = await createClient();
   const ctx = await getPortalContext(supabase);
   if (!ctx) redirect("/portal/login");
+  // Termos de adesão pendentes bloqueiam o Portal (menos o pagamento de mensalidades).
+  if (await termosPendentes(supabase, ctx.associadoId)) redirect("/portal/termos");
 
   const result = await getAssociadoById(supabase, ctx.associadoId);
   if (!result) redirect("/portal/login");

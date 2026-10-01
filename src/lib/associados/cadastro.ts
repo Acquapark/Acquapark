@@ -8,6 +8,7 @@ import { criarDocumentoParaAssinatura } from "@/lib/signature/autentique";
 import { sincronizarCobrancaAsaas } from "@/lib/gateway/sincronizar-mensalidade";
 import { getModeloById } from "@/lib/supabase/contratos";
 import { criarLoginDoAssociado } from "./acesso-portal";
+import { getContratoAutomatico } from "@/lib/termos";
 import { FOTO_TAMANHO_MAXIMO } from "./autocadastro-tipos";
 import { variaveisDoAssociadoUsadas } from "@/lib/contracts/variables";
 
@@ -32,6 +33,9 @@ export async function gerarEEnviarContratoAutomatico(
 ): Promise<string | null> {
   let contratoGerado = false;
   try {
+    // Pausado em Configurações → Dados do Parque: o associado aceita os termos de adesão no lugar.
+    if (!(await getContratoAutomatico(supabase))) return null;
+
     const modeloId = await getModeloPadrao(supabase);
     if (!modeloId) {
       return "O contrato não foi gerado: não há modelo de contrato padrão ativo (menu Contratos → Marcar como padrão).";
@@ -78,6 +82,7 @@ export async function gerarEEnviarContratoAutomatico(
  * esses campos para o contrato automático não falhar por falta de informação.
  */
 export async function camposExigidosPeloContrato(supabase: SupabaseClient) {
+  if (!(await getContratoAutomatico(supabase))) return [];
   const modeloId = await getModeloPadrao(supabase);
   if (!modeloId) return [];
   const modelo = await getModeloById(supabase, modeloId);

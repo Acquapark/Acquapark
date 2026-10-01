@@ -10,6 +10,7 @@ import { PlanosSection } from "./sections/PlanosSection";
 import { TiposIngressoSection } from "./sections/TiposIngressoSection";
 import { RegrasAcessoSection } from "./sections/RegrasAcessoSection";
 import { CatracasSection } from "./sections/CatracasSection";
+import { TermosSection, VersaoTermosLista } from "./sections/TermosSection";
 import { Empresa } from "@/lib/contracts/variables";
 import { Catraca, Plano, TipoIngresso } from "@/types";
 import { GrupoAcesso, UsuarioEquipe } from "@/lib/supabase/usuarios-grupos";
@@ -23,6 +24,8 @@ export function ConfiguracoesClient({
   catracas,
   usuarios,
   grupos,
+  contratoAutomatico,
+  versoesTermos,
 }: {
   empresa: Empresa;
   planos: Plano[];
@@ -30,6 +33,8 @@ export function ConfiguracoesClient({
   catracas: Catraca[];
   usuarios: UsuarioEquipe[];
   grupos: GrupoAcesso[];
+  contratoAutomatico: boolean;
+  versoesTermos: VersaoTermosLista[];
 }) {
   const { pode } = useAcesso();
   const searchParams = useSearchParams();
@@ -43,7 +48,8 @@ export function ConfiguracoesClient({
       <PageHeader title="Configurações" subtitle="Parâmetros gerais do sistema e do parque" />
 
       <Card className="p-5">
-        {section === "parque" && <DadosParqueSection empresa={empresa} />}
+        {section === "parque" && <DadosParqueSection empresa={empresa} contratoAutomatico={contratoAutomatico} />}
+        {section === "termos" && <TermosSection versoes={versoesTermos} />}
         {section === "usuarios" && <UsuariosSection usuarios={usuarios} grupos={grupos} />}
         {section === "permissoes" && <GruposSection grupos={grupos} />}
         {section === "planos" && <PlanosSection planos={planos} />}

@@ -15,6 +15,7 @@ import {
   validarFoto,
 } from "@/lib/associados/cadastro";
 import { getPlanosAutocadastro } from "@/lib/associados/autocadastro";
+import { getContratoAutomatico, getTermoVigente, registrarAceite } from "@/lib/termos";
 import { AutocadastroDados, SENHA_TAMANHO_MINIMO } from "@/lib/associados/autocadastro-tipos";
 
 const LIMITE_TENTATIVAS_POR_HORA = 5;
@@ -29,6 +30,8 @@ export type AutocadastroResultado =
       numero: string;
       email: string;
       acessoCriado: boolean;
+      /** Se o contrato para assinatura foi enviado por e-mail (contrato automático ligado). */
+      contratoEnviado: boolean;
       primeiraParcela: { valor: number; vencimento: string } | null;
     };
 
@@ -124,6 +127,14 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     return { error: `Preencha: ${faltandoParaContrato.map((v) => v.label).join(", ")}.` };
   }
 
+  // O aceite tem que ser da versão em vigor: se os termos mudaram enquanto a
+  // pessoa preenchia, ela precisa ler a versão nova.
+  const termo = await getTermoVigente(admin);
+  if (!termo) return { error: "O cadastro pela internet está indisponível no momento. Procure a secretaria do parque." };
+  if (dados.termosVersaoId !== termo.id) {
+    return { error: "Os termos de adesão foram atualizados. Recarregue a página e leia a versão nova." };
+  }
+
   const planos = await getPlanosAutocadastro(admin);
   const plano = planos.find((p) => p.id === dados.planoId);
   if (!plano) return { error: "O plano escolhido não está mais disponível. Escolha outro plano." };
@@ -191,6 +202,14 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
   }
   const associadoId = associado.id as string;
 
+  // Prova do aceite (versão, data/hora, IP, navegador). Sem ela o cadastro não vale.
+  const aceite = await registrarAceite(admin, { associadoId, versaoId: termo.id, origem: "autocadastro" });
+  if (aceite.error) {
+    await desfazer(associadoId);
+    console.error("Autocadastro: falha ao registrar aceite dos termos:", aceite.error);
+    return { error: "Não foi possível concluir o cadastro. Tente novamente." };
+  }
+
   if (dados.dependentes.length > 0) {
     const { error: dependentesError } = await admin.from("dependentes").insert(
       dados.dependentes.map((d) => ({
@@ -227,6 +246,7 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     geradoPor: null,
   });
   if (avisoContrato) console.error(`Autocadastro ${associado.numero}: ${avisoContrato}`);
+  const contratoEnviado = !avisoContrato && (await getContratoAutomatico(admin));
 
   const { data: primeira } = await admin
     .from("mensalidades")
@@ -242,6 +262,7 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     numero: associado.numero as string,
     email,
     acessoCriado,
+    contratoEnviado,
     primeiraParcela: primeira ? { valor: Number(primeira.valor), vencimento: primeira.vencimento as string } : null,
   };
 }

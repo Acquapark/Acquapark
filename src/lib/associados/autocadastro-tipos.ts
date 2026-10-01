@@ -26,6 +26,8 @@ export interface AutocadastroDados {
   dependentes: AutocadastroDependente[];
   senha: string;
   aceiteTermos: boolean;
+  /** Versão dos termos que a pessoa leu e aceitou na página. */
+  termosVersaoId: string;
 }
 
 /** O que a página pública pode saber de um plano — nada além do que já é divulgado. */

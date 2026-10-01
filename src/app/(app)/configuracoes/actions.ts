@@ -63,3 +63,50 @@ export async function updatePlano(id: string, input: PlanoFormInput) {
   revalidatePath("/configuracoes");
   return { success: true };
 }
+
+/** Liga/desliga o contrato automático (documento para assinatura enviado no cadastro). */
+export async function salvarContratoAutomatico(ligado: boolean) {
+  const negado = await exigirPermissao("parque.editar");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+  const { error } = await supabase.from("empresa").update({ contrato_automatico: ligado }).eq("id", true);
+  if (error) return { error: error.message };
+  revalidatePath("/configuracoes");
+  return { success: true };
+}
+
+/**
+ * Publica uma nova versão dos termos de adesão. Versões publicadas nunca são
+ * editadas: cada mudança vira uma versão nova, e todo associado precisa
+ * aceitá-la no próximo acesso ao Portal.
+ */
+export async function publicarTermos(conteudo: string) {
+  const negado = await exigirPermissao("termos.publicar");
+  if (negado) return { error: negado.error };
+  const texto = conteudo.trim();
+  if (texto.length < 20) return { error: "Escreva o texto dos termos antes de publicar." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const { data: ultima } = await supabase
+    .from("termos_versoes")
+    .select("versao, conteudo")
+    .order("versao", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (ultima && (ultima.conteudo as string).trim() === texto) {
+    return { error: "O texto é igual ao da versão em vigor — nada para publicar." };
+  }
+
+  const { error } = await supabase.from("termos_versoes").insert({
+    versao: ((ultima?.versao as number) ?? 0) + 1,
+    conteudo: texto,
+    publicado_por: user?.id ?? null,
+  });
+  if (error) return { error: error.code === "23505" ? "Outra versão acabou de ser publicada. Recarregue a página." : error.message };
+
+  revalidatePath("/configuracoes");
+  return { success: true };
+}

@@ -4,18 +4,21 @@ import { getAssociadoById, getPlanos } from "@/lib/supabase/associados";
 import { getContratosGeradosDoAssociado, getModelosAtivos } from "@/lib/supabase/contratos";
 import { getContratoAtivo } from "@/lib/supabase/contrato-associado";
 import { getAcessoAssociado } from "@/lib/supabase/acesso";
+import { getTermoVigente, getUltimoAceite } from "@/lib/termos";
 import { AssociadoProfileClient } from "./AssociadoProfileClient";
 
 export default async function AssociadoProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [result, planos, contratosGerados, modelosAtivos, contratoAtivo, acesso] = await Promise.all([
+  const [result, planos, contratosGerados, modelosAtivos, contratoAtivo, acesso, termoVigente, ultimoAceite] = await Promise.all([
     getAssociadoById(supabase, id),
     getPlanos(supabase),
     getContratosGeradosDoAssociado(supabase, id),
     getModelosAtivos(supabase),
     getContratoAtivo(supabase, id),
     getAcessoAssociado(supabase, id),
+    getTermoVigente(supabase),
+    getUltimoAceite(supabase, id),
   ]);
 
   if (!result) notFound();
@@ -38,6 +41,7 @@ export default async function AssociadoProfilePage({ params }: { params: Promise
       modelosAtivos={modelosAtivos}
       contratoAtivo={contratoAtivo}
       acesso={acesso}
+      termos={{ versaoVigente: termoVigente?.versao ?? null, ultimoAceite }}
     />
   );
 }

@@ -21,6 +21,7 @@ import {
   KeyRound,
   ChevronDown,
   Banknote,
+  ScrollText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
@@ -39,6 +40,7 @@ const NAV_ITEMS = [
 
 const CONFIG_ICONS = {
   parque: Building2,
+  termos: ScrollText,
   usuarios: Users,
   permissoes: KeyRound,
   planos: CreditCard,

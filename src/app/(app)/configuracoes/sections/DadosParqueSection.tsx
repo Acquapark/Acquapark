@@ -6,11 +6,27 @@ import { Label, Input } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Empresa } from "@/lib/contracts/variables";
 import { saveEmpresa } from "@/app/(app)/contratos/actions";
-import { formatCEP } from "@/lib/utils";
+import { cn, formatCEP } from "@/lib/utils";
+import { salvarContratoAutomatico } from "@/app/(app)/configuracoes/actions";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 
-export function DadosParqueSection({ empresa }: { empresa: Empresa }) {
+export function DadosParqueSection({ empresa, contratoAutomatico }: { empresa: Empresa; contratoAutomatico: boolean }) {
   const { pode } = useAcesso();
+  const [contratoLigado, setContratoLigado] = useState(contratoAutomatico);
+  const [salvandoContrato, setSalvandoContrato] = useState(false);
+  const [erroContrato, setErroContrato] = useState("");
+
+  async function handleContratoAutomatico(ligado: boolean) {
+    setSalvandoContrato(true);
+    setErroContrato("");
+    setContratoLigado(ligado);
+    const result = await salvarContratoAutomatico(ligado);
+    setSalvandoContrato(false);
+    if (result.error) {
+      setContratoLigado(!ligado);
+      setErroContrato(result.error);
+    }
+  }
   const [form, setForm] = useState(empresa);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
@@ -146,6 +162,34 @@ export function DadosParqueSection({ empresa }: { empresa: Empresa }) {
             {saving ? "Salvando..." : "Salvar alterações"}
           </Button>
         )}
+      </div>
+
+      <div className="mt-6 border-t border-gray-100 pt-5">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-gray-400">Contrato</p>
+        <label
+          className={cn(
+            "flex items-start gap-2.5 rounded-[6px] border px-3 py-2.5",
+            pode("parque.editar") ? "cursor-pointer" : "opacity-60",
+            contratoLigado ? "border-primary-500 bg-primary-50" : "border-gray-200",
+          )}
+        >
+          <input
+            type="checkbox"
+            className="mt-0.5"
+            checked={contratoLigado}
+            disabled={!pode("parque.editar") || salvandoContrato}
+            onChange={(e) => handleContratoAutomatico(e.target.checked)}
+          />
+          <span>
+            <span className="block text-sm font-medium text-gray-800">Enviar contrato automaticamente no cadastro</span>
+            <span className="block text-[11px] text-gray-500">
+              Ligado: ao cadastrar um associado, o contrato é gerado pelo modelo padrão e enviado por e-mail para assinatura
+              (Autentique), e o cadastro exige os dados usados no modelo. Desligado: nada é enviado, e o associado aceita os
+              Termos de Adesão. As mensalidades do plano são geradas nos dois casos.
+            </span>
+          </span>
+        </label>
+        {erroContrato && <p className="mt-1.5 text-xs text-danger-600">{erroContrato}</p>}
       </div>
     </div>
   );

@@ -51,6 +51,7 @@ const emptyDados: AutocadastroDados = {
   dependentes: [],
   senha: "",
   aceiteTermos: false,
+  termosVersaoId: "",
 };
 
 const emptyDependente: AutocadastroDependente = { nome: "", cpf: "", parentesco: "", nascimento: "" };
@@ -70,10 +71,13 @@ function Campo({ label, required, children }: { label: string; required?: boolea
 export function AutocadastroClient({
   planos,
   camposContrato,
+  termo,
 }: {
   planos: PlanoAutocadastro[];
   /** Campos que o modelo de contrato padrão usa — obrigatórios para o contrato ser gerado. */
   camposContrato: CampoFormularioContrato[];
+  /** Termos de adesão em vigor — o aceite é obrigatório para concluir. */
+  termo: { id: string; versao: number; conteudo: string };
 }) {
   const router = useRouter();
   const [dados, setDados] = useState<AutocadastroDados>(emptyDados);
@@ -255,12 +259,14 @@ export function AutocadastroClient({
         </div>
 
         <div className="mt-4 space-y-3 rounded-[10px] border border-gray-200 bg-white p-5 text-sm text-gray-600 shadow-sm">
+          {sucesso.contratoEnviado && (
+            <p>
+              <strong className="text-gray-800">Assine o contrato:</strong> enviamos o contrato para <strong>{sucesso.email}</strong>.
+              Confira também a caixa de spam.
+            </p>
+          )}
           <p>
-            <strong className="text-gray-800">1. Assine o contrato:</strong> enviamos o contrato para <strong>{sucesso.email}</strong>.
-            Confira também a caixa de spam.
-          </p>
-          <p>
-            <strong className="text-gray-800">2. Pague a 1ª mensalidade:</strong>{" "}
+            <strong className="text-gray-800">Pague a 1ª mensalidade:</strong>{" "}
             {sucesso.primeiraParcela
               ? `${formatCurrency(sucesso.primeiraParcela.valor)}, com vencimento em ${formatDate(sucesso.primeiraParcela.vencimento)}.`
               : "a cobrança aparece no Portal do Associado."}{" "}
@@ -659,17 +665,23 @@ export function AutocadastroClient({
               )}
             </dl>
 
+            <div>
+              <p className="mb-1.5 text-xs font-semibold text-gray-700">Termos de Adesão (versão {termo.versao})</p>
+              <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-[6px] border border-gray-200 bg-gray-50 p-3 text-xs leading-relaxed text-gray-600">
+                {termo.conteudo}
+              </div>
+            </div>
+
             <label className="flex cursor-pointer items-start gap-3">
               <input
                 type="checkbox"
                 className="mt-1 h-4 w-4"
                 checked={dados.aceiteTermos}
-                onChange={(e) => update({ aceiteTermos: e.target.checked })}
+                onChange={(e) => update({ aceiteTermos: e.target.checked, termosVersaoId: termo.id })}
               />
               <span className="text-xs text-gray-600">
-                Confirmo que os dados são verdadeiros, aceito as condições do plano escolhido e autorizo o Aqua Park a usar meus
-                dados e minha foto para cadastro, cobrança e controle de acesso ao parque, conforme a Lei Geral de Proteção de
-                Dados (LGPD).
+                <strong className="text-gray-800">Li e aceito os Termos de Adesão.</strong> Confirmo também que os dados informados
+                são verdadeiros.
               </span>
             </label>
           </div>
@@ -704,7 +716,7 @@ export function AutocadastroClient({
           <button
             type="button"
             onClick={concluir}
-            disabled={enviando}
+            disabled={enviando || !dados.aceiteTermos}
             className="h-12 flex-1 rounded-[6px] bg-primary-600 text-base font-semibold text-white transition-colors hover:bg-primary-700 disabled:bg-gray-300"
           >
             {enviando ? "Enviando..." : "Concluir cadastro"}

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowRight, IdCard, Receipt } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getPortalContext } from "@/lib/supabase/portal";
+import { termosPendentes } from "@/lib/termos";
 import { getAssociadoById } from "@/lib/supabase/associados";
 import { getContratoAtivo, getMensalidadesDoContrato } from "@/lib/supabase/contrato-associado";
 import { PortalShell } from "@/components/portal/PortalShell";
@@ -21,6 +22,8 @@ export default async function PortalInicioPage() {
   const supabase = await createClient();
   const ctx = await getPortalContext(supabase);
   if (!ctx) redirect("/portal/login");
+  // Termos de adesão pendentes bloqueiam o Portal (menos o pagamento de mensalidades).
+  if (await termosPendentes(supabase, ctx.associadoId)) redirect("/portal/termos");
 
   const result = await getAssociadoById(supabase, ctx.associadoId);
   if (!result) redirect("/portal/login");
