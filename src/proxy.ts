@@ -74,7 +74,10 @@ export async function proxy(request: NextRequest) {
     const isAssociadoAtivo = acesso?.status === "Ativo";
 
     if (isPortalPublic) {
-      if (isAssociadoAtivo) return redirectTo("/portal");
+      // Redefinir senha fica acessível mesmo logado: o link do e-mail abre uma
+      // sessão de recuperação, e recarregar a página não pode jogar para o
+      // Portal antes de a nova senha ser salva.
+      if (isAssociadoAtivo && pathname !== "/portal/redefinir-senha") return redirectTo("/portal");
       return response;
     }
     if (!isAssociadoAtivo) return redirectTo("/portal/login");
