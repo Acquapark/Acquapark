@@ -142,10 +142,28 @@ export async function deleteAssociado(id: string) {
   const supabase = await createClient();
   const admin = createAdminClient();
   const logins = await loginsDoAssociado(admin, id);
+
+  // As mensalidades somem do banco junto com o associado, mas as cobranças na
+  // Asaas não: sem cancelar antes, elas continuavam lá cobrando. Se alguma não
+  // puder ser cancelada (Asaas fora do ar), a exclusão para — senão o vínculo
+  // com a cobrança se perderia e ela ficaria órfã na Asaas.
+  const { falhas } = await cancelarContratoEParcelasDoAssociado(supabase, id);
+  if (falhas.length > 0) {
+    return {
+      error: `Não foi possível cancelar todas as cobranças na Asaas, então o associado não foi excluído. Tente de novo em instantes. ${falhas.join("; ")}`,
+    };
+  }
+
   const { error } = await supabase.from("associados").delete().eq("id", id);
   if (error) {
     if (error.code === "23503") {
-      return { error: "Este associado tem histórico vinculado e não pode ser excluído. Inative-o em vez de excluir." };
+      // As cobranças em aberto já foram canceladas acima: deixa o associado
+      // coerente com isso (inativo) em vez de ativo sem parcelas.
+      await supabase.from("associados").update({ status: "Inativo" }).eq("id", id);
+      return {
+        error:
+          "Este associado tem histórico vinculado e não pode ser excluído. As cobranças em aberto foram canceladas na Asaas e ele foi inativado.",
+      };
     }
     return { error: error.message };
   }
