@@ -7,6 +7,10 @@ import { termosPendentes } from "@/lib/termos";
 import { getAssociadoById } from "@/lib/supabase/associados";
 import { getContratoAtivo, getMensalidadesDoContrato } from "@/lib/supabase/contrato-associado";
 import { PortalShell } from "@/components/portal/PortalShell";
+import { CortesiaCard } from "@/components/cortesia/CortesiaCard";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { getSituacaoCortesia } from "@/lib/cortesia";
+import { resgatarCortesiaPortal } from "@/app/portal/actions";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { Mensalidade } from "@/types";
 
@@ -28,7 +32,11 @@ export default async function PortalInicioPage() {
   const result = await getAssociadoById(supabase, ctx.associadoId);
   if (!result) redirect("/portal/login");
 
-  const contratoAtivo = await getContratoAtivo(supabase, ctx.associadoId);
+  // Cortesia lida com o cliente admin (o Portal não lê ingressos), sempre do associado da sessão.
+  const [contratoAtivo, cortesia] = await Promise.all([
+    getContratoAtivo(supabase, ctx.associadoId),
+    getSituacaoCortesia(createAdminClient(), ctx.associadoId),
+  ]);
   const mensalidades = contratoAtivo ? await getMensalidadesDoContrato(supabase, contratoAtivo.id) : [];
 
   const proxima = mensalidades
@@ -68,6 +76,8 @@ export default async function PortalInicioPage() {
             <p className="mt-1 text-xs text-gray-500">Você está em dia com o Aqua Park.</p>
           </div>
         )}
+
+        {cortesia.configurada && <CortesiaCard situacao={cortesia} variante="portal" onResgatar={resgatarCortesiaPortal} />}
 
         <Link
           href="/portal/mensalidades"

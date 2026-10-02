@@ -361,3 +361,14 @@ export async function validarCupom(
 
   return { valorDesconto: desconto, valorFinal: valorBase - desconto };
 }
+
+/** Escolhe qual tipo de ingresso é emitido na cortesia mensal dos associados (null desliga o resgate). */
+export async function definirTipoCortesia(tipoId: string | null) {
+  const negado = await exigirPermissao("tipos_ingresso.editar");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+  const { error } = await supabase.from("empresa").update({ cortesia_tipo_id: tipoId }).eq("id", true);
+  if (error) return { error: error.message };
+  revalidatePath("/configuracoes");
+  return { success: true };
+}

@@ -26,6 +26,7 @@ export function ConfiguracoesClient({
   grupos,
   contratoAutomatico,
   versoesTermos,
+  cortesiaTipoId,
 }: {
   empresa: Empresa;
   planos: Plano[];
@@ -35,6 +36,7 @@ export function ConfiguracoesClient({
   grupos: GrupoAcesso[];
   contratoAutomatico: boolean;
   versoesTermos: VersaoTermosLista[];
+  cortesiaTipoId: string | null;
 }) {
   const { pode } = useAcesso();
   const searchParams = useSearchParams();
@@ -53,7 +55,7 @@ export function ConfiguracoesClient({
         {section === "usuarios" && <UsuariosSection usuarios={usuarios} grupos={grupos} />}
         {section === "permissoes" && <GruposSection grupos={grupos} />}
         {section === "planos" && <PlanosSection planos={planos} />}
-        {section === "ingressos" && <TiposIngressoSection tipos={tiposIngresso} />}
+        {section === "ingressos" && <TiposIngressoSection tipos={tiposIngresso} cortesiaTipoId={cortesiaTipoId} />}
         {section === "regras" && <RegrasAcessoSection />}
         {section === "catracas" && <CatracasSection catracas={catracas} />}
       </Card>

@@ -133,6 +133,12 @@ export const MODULOS: ModuloDef[] = [
         descricao: "Login do associado no portal: criar, redefinir senha, bloquear.",
         acoes: [A.visualizar, A.criar, A.editar],
       },
+      {
+        chave: "cortesias",
+        rotulo: "Cortesia mensal",
+        descricao: "1 ingresso de cortesia por mês para associados ativos com plano.",
+        acoes: [{ chave: "resgatar", rotulo: "Resgatar / cancelar cortesia" }],
+      },
     ],
   },
   {

@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apagarLogins, loginsDoAssociado } from "@/lib/associados/acesso-portal";
+import { resgatarCortesia } from "@/lib/cortesia";
 import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
@@ -476,5 +477,48 @@ export async function salvarFotoAssociado(associadoId: string, formData: FormDat
   if (associado.foto_url) await supabase.storage.from(BUCKET_FOTOS).remove([associado.foto_url as string]);
 
   revalidatePath(`/associados/${associadoId}`);
+  return { success: true };
+}
+
+/** Resgata a cortesia do mês pelo painel (balcão). As regras ficam em `resgatarCortesia`. */
+export async function resgatarCortesiaAssociado(
+  associadoId: string,
+  dataUtilizacao: string,
+): Promise<{ error: string } | { success: true; ingressoId: string }> {
+  const negado = await exigirPermissao("cortesias.resgatar");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const result = await resgatarCortesia(createAdminClient(), { associadoId, dataUtilizacao, resgatadoPor: user?.id ?? null });
+  if ("error" in result) return result;
+
+  revalidatePath(`/associados/${associadoId}`);
+  revalidatePath("/bilheteria");
+  return { success: true, ingressoId: result.ingressoId };
+}
+
+/**
+ * Cancela uma cortesia ainda não usada — o mês fica livre para um novo resgate
+ * (o índice único do banco ignora cortesias canceladas).
+ */
+export async function cancelarCortesia(ingressoId: string): Promise<{ error: string } | { success: true }> {
+  const negado = await exigirPermissao("cortesias.resgatar");
+  if (negado) return { error: negado.error };
+  const supabase = await createClient();
+  const { data, error } = await supabase
+    .from("ingressos")
+    .update({ status: "Cancelado" })
+    .eq("id", ingressoId)
+    .not("cortesia_mes", "is", null)
+    .eq("status", "Disponível")
+    .select("associado_id");
+  if (error) return { error: error.message };
+  if (!data || data.length === 0) return { error: "Só é possível cancelar uma cortesia que ainda não foi usada." };
+
+  revalidatePath(`/associados/${data[0].associado_id}`);
+  revalidatePath("/bilheteria");
   return { success: true };
 }

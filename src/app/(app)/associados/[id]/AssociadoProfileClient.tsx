@@ -20,12 +20,16 @@ import { ContratosTabContent } from "@/components/associados/ContratosTabContent
 import { AcessoTabContent } from "@/components/associados/AcessoTabContent";
 import { Associado, AcessoAssociado, AssociadoStatus, Contrato, Plano } from "@/types";
 import type { AceiteTermos } from "@/lib/termos";
+import type { SituacaoCortesia } from "@/lib/cortesia";
+import { CortesiaCard } from "@/components/cortesia/CortesiaCard";
 import { formatDateTime } from "@/lib/utils";
 import { ContratoGerado, ModeloContrato } from "@/lib/supabase/contratos";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import {
+  cancelarCortesia,
   ensureCredencial,
   regenerarCredencial,
+  resgatarCortesiaAssociado,
   salvarFotoAssociado,
   updateAssociado,
   updateAssociadoStatus,
@@ -105,6 +109,7 @@ export function AssociadoProfileClient({
   acesso,
   contratoAtivo,
   termos,
+  cortesia,
 }: {
   associado: Associado;
   planoId: string | null;
@@ -116,6 +121,7 @@ export function AssociadoProfileClient({
   contratoAtivo: Contrato | null;
   /** Situação do aceite dos termos de adesão (versaoVigente null = nenhuma versão publicada). */
   termos: { versaoVigente: number | null; ultimoAceite: AceiteTermos | null };
+  cortesia: SituacaoCortesia;
 }) {
   const router = useRouter();
   const { pode } = useAcesso();
@@ -327,6 +333,18 @@ export function AssociadoProfileClient({
           )}
         </div>
       </Card>
+
+      {cortesia.configurada && (
+        <Card className="mb-5 p-5">
+          <CortesiaCard
+            situacao={cortesia}
+            variante="painel"
+            podeGerenciar={pode("cortesias.resgatar")}
+            onResgatar={(data) => resgatarCortesiaAssociado(associado.id, data)}
+            onCancelar={cancelarCortesia}
+          />
+        </Card>
+      )}
 
       {statusResultMsg && (
         <div

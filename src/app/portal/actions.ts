@@ -8,7 +8,8 @@ import { gatewayReal, paymentGateway } from "@/lib/gateway";
 import { Pagador } from "@/lib/gateway/types";
 import { processarConfirmacaoPagamento } from "@/lib/pagamento-webhook";
 import { FormaPagamento } from "@/types";
-import { getTermoVigente, registrarAceite } from "@/lib/termos";
+import { getTermoVigente, registrarAceite, termosPendentes } from "@/lib/termos";
+import { resgatarCortesia } from "@/lib/cortesia";
 
 /**
  * Cria a cobrança no gateway e grava o charge_id na mensalidade. A mensalidade
@@ -159,5 +160,19 @@ export async function aceitarTermos(versaoId: string): Promise<{ error: string }
   if (result.error) return { error: "Não foi possível registrar o aceite. Tente novamente." };
 
   revalidatePath("/portal", "layout");
+  return { success: true };
+}
+
+/** Resgate da cortesia do mês pelo próprio associado. O associado vem da sessão, nunca do cliente. */
+export async function resgatarCortesiaPortal(dataUtilizacao: string): Promise<{ error: string } | { success: true }> {
+  const supabase = await createClient();
+  const ctx = await getPortalContext(supabase);
+  if (!ctx) return { error: "Sessão expirada. Entre novamente." };
+  if (await termosPendentes(supabase, ctx.associadoId)) return { error: "Aceite os Termos de Adesão antes de resgatar a cortesia." };
+
+  const result = await resgatarCortesia(createAdminClient(), { associadoId: ctx.associadoId, dataUtilizacao, resgatadoPor: null });
+  if ("error" in result) return result;
+
+  revalidatePath("/portal");
   return { success: true };
 }

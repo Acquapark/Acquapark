@@ -24,7 +24,7 @@ export async function getTiposIngresso(supabase: SupabaseClient): Promise<TipoIn
 }
 
 const INGRESSO_SELECT =
-  "id, numero, codigo, comprador_nome, data_utilizacao, valor, valor_desconto, status, forma_pagamento, sem_expiracao, tipos_ingresso ( nome ), cupons_desconto ( codigo )";
+  "id, numero, codigo, comprador_nome, data_utilizacao, valor, valor_desconto, status, forma_pagamento, sem_expiracao, cortesia_mes, tipos_ingresso ( nome ), cupons_desconto ( codigo ), associados ( nome )";
 
 function mapIngresso(row: Row): Ingresso {
   return {
@@ -32,7 +32,10 @@ function mapIngresso(row: Row): Ingresso {
     numero: row.numero as string,
     codigo: row.codigo as string,
     tipo: ((row.tipos_ingresso as Row | null)?.nome as string) ?? "—",
-    comprador: (row.comprador_nome as string) ?? "—",
+    // Cortesia sai sem nome (quem tiver o QR entra): mostra o associado que resgatou.
+    comprador: row.cortesia_mes
+      ? `Cortesia · ${((row.associados as Row | null)?.nome as string) ?? "associado"}`
+      : ((row.comprador_nome as string) ?? "—"),
     dataUtilizacao: row.data_utilizacao as string,
     semExpiracao: (row.sem_expiracao as boolean) ?? false,
     valor: Number(row.valor),
