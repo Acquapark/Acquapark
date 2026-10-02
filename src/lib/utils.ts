@@ -26,17 +26,25 @@ export function isCPFValido(value: string) {
   return true;
 }
 
-/** RG não tem padrão nacional único, mas a maioria dos estados segue XX.XXX.XXX-X (o dígito verificador final às vezes é "X"). */
+export const RG_TAMANHO_MAXIMO = 20;
+
+/**
+ * RG não tem padrão nacional: o tamanho varia por estado (de 7 a 14 dígitos)
+ * e alguns têm letras (ex: "MG-12.345.678"). Por isso não há máscara — só
+ * maiúsculas e os caracteres que aparecem em RGs, como a pessoa digitar.
+ */
 export function formatRG(value: string) {
-  const chars = value
+  return value
     .toUpperCase()
-    .replace(/[^0-9X]/g, "")
-    .slice(0, 9);
-  return chars
-    .replace(/(\d{2})(\w)/, "$1.$2")
-    .replace(/(\d{3})(\w)/, "$1.$2")
-    .replace(/(\d{3})(\w)$/, "$1-$2");
+    .replace(/[^0-9A-Z.\-/ ]/g, "")
+    .slice(0, RG_TAMANHO_MAXIMO);
 }
+
+/** As 27 unidades federativas, para as listas de UF dos formulários. */
+export const UFS = [
+  "AC", "AL", "AP", "AM", "BA", "CE", "DF", "ES", "GO", "MA", "MT", "MS", "MG", "PA",
+  "PB", "PR", "PE", "PI", "RJ", "RN", "RS", "RO", "RR", "SC", "SP", "SE", "TO",
+] as const;
 
 export function formatPhone(value: string) {
   const digits = value.replace(/\D/g, "").slice(0, 11);

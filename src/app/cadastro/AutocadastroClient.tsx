@@ -5,7 +5,18 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowLeft, Camera, Check, CheckCircle2, Plus, Trash2, Waves } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { cn, formatCEP, formatCPF, formatCurrency, formatDate, formatPhone, formatRG, isCPFValido } from "@/lib/utils";
+import {
+  cn,
+  formatCEP,
+  formatCPF,
+  formatCurrency,
+  formatDate,
+  formatPhone,
+  formatRG,
+  isCPFValido,
+  RG_TAMANHO_MAXIMO,
+  UFS,
+} from "@/lib/utils";
 import type { CampoFormularioContrato } from "@/lib/contracts/variables";
 import {
   AutocadastroDados,
@@ -343,8 +354,8 @@ export function AutocadastroClient({
                 className={inputClass}
                 value={dados.rg}
                 onChange={(e) => update({ rg: formatRG(e.target.value) })}
-                placeholder="00.000.000-0"
-                maxLength={12}
+                placeholder="Número do RG"
+                maxLength={RG_TAMANHO_MAXIMO}
               />
             </Campo>
             <div className="grid grid-cols-2 gap-3">
@@ -428,12 +439,14 @@ export function AutocadastroClient({
                 <input className={inputClass} value={dados.cidade} onChange={(e) => update({ cidade: e.target.value })} />
               </Campo>
               <Campo label="UF" required>
-                <input
-                  className={inputClass}
-                  value={dados.estado}
-                  onChange={(e) => update({ estado: e.target.value.replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 2) })}
-                  maxLength={2}
-                />
+                <select className={inputClass} value={dados.estado} onChange={(e) => update({ estado: e.target.value })}>
+                  <option value="">UF</option>
+                  {UFS.map((uf) => (
+                    <option key={uf} value={uf}>
+                      {uf}
+                    </option>
+                  ))}
+                </select>
               </Campo>
             </div>
           </div>

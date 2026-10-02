@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hojeBR } from "@/lib/datas-br";
-import { formatCEP, formatCPF, formatPhone, isCPFValido } from "@/lib/utils";
+import { formatCEP, formatCPF, formatPhone, isCPFValido, UFS } from "@/lib/utils";
 import {
   BUCKET_FOTOS,
   camposExigidosPeloContrato,
@@ -59,7 +59,7 @@ function validar(dados: AutocadastroDados, hoje: string): string | null {
   if (!dados.endereco.trim() || !dados.numero.trim() || !dados.bairro.trim() || !dados.cidade.trim()) {
     return "Preencha o endereço completo.";
   }
-  if (!/^[A-Za-z]{2}$/.test(dados.estado.trim())) return "Informe a UF do estado (ex: SP).";
+  if (!(UFS as readonly string[]).includes(dados.estado.trim().toUpperCase())) return "Selecione a UF do estado.";
   if (dados.senha.length < SENHA_TAMANHO_MINIMO) return `A senha precisa ter pelo menos ${SENHA_TAMANHO_MINIMO} caracteres.`;
   if (!dados.aceiteTermos) return "É preciso aceitar os termos para concluir o cadastro.";
 

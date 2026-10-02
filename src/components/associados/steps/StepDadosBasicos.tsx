@@ -4,7 +4,7 @@ import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { AssociadoFormState } from "../form-types";
-import { cn, formatCEP, formatCPF, formatPhone, formatRG } from "@/lib/utils";
+import { cn, formatCEP, formatCPF, formatPhone, formatRG, RG_TAMANHO_MAXIMO, UFS } from "@/lib/utils";
 import { comprimirFoto } from "@/lib/foto-associado";
 
 export function StepDadosBasicos({
@@ -129,8 +129,8 @@ export function StepDadosBasicos({
             <Input
               value={form.rg}
               onChange={(e) => update({ rg: formatRG(e.target.value) })}
-              placeholder="00.000.000-0"
-              maxLength={12}
+              placeholder="Número do RG"
+              maxLength={RG_TAMANHO_MAXIMO}
               disabled={disabled}
             />
           </div>
@@ -222,7 +222,16 @@ export function StepDadosBasicos({
           </div>
           <div>
             <Label>Estado</Label>
-            <Input value={form.estado} onChange={(e) => update({ estado: e.target.value })} maxLength={2} placeholder="UF" disabled={disabled} />
+            <Select value={form.estado} onChange={(e) => update({ estado: e.target.value })} disabled={disabled}>
+              <option value="">UF</option>
+              {/* Cadastro antigo com UF fora da lista (ex: digitada errada) continua visível para corrigir. */}
+              {form.estado && !(UFS as readonly string[]).includes(form.estado) && <option value={form.estado}>{form.estado}</option>}
+              {UFS.map((uf) => (
+                <option key={uf} value={uf}>
+                  {uf}
+                </option>
+              ))}
+            </Select>
           </div>
         </div>
       </div>

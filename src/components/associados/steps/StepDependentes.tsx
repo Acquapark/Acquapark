@@ -7,7 +7,7 @@ import { Label, Input, Select } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { Badge } from "@/components/ui/Badge";
 import { AssociadoFormState } from "../form-types";
-import { formatCPF, formatDate, formatRG } from "@/lib/utils";
+import { formatCPF, formatDate, formatRG, RG_TAMANHO_MAXIMO } from "@/lib/utils";
 import { Dependente, Plano } from "@/types";
 
 const emptyDependente = { nome: "", cpf: "", rg: "", nascimento: "", parentesco: "", sexo: "", observacoes: "" };
@@ -154,7 +154,7 @@ export function StepDependentes({
 
             <div>
               <Label>RG</Label>
-              <Input value={draft.rg} onChange={(e) => setDraft({ ...draft, rg: formatRG(e.target.value) })} maxLength={12} />
+              <Input value={draft.rg} onChange={(e) => setDraft({ ...draft, rg: formatRG(e.target.value) })} maxLength={RG_TAMANHO_MAXIMO} />
             </div>
             <div>
               <Label>Data de nascimento</Label>
