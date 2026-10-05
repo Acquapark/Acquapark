@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>CatracaPonte</AssemblyName>
+    <RootNamespace>CatracaPonte</RootNamespace>
+    <!-- A EasyInner.dll da Topdata é 32 bits: o processo precisa ser x86. -->
+    <PlatformTarget>x86</PlatformTarget>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+    <!-- A DLL é da Topdata (vem no SDK EasyInner) e não fica no repositório:
+         copie-a para esta pasta antes de publicar, ou direto ao lado do .exe. -->
+    <None Include="EasyInner.dll" Condition="Exists('EasyInner.dll')" CopyToOutputDirectory="PreserveNewest" ExcludeFromSingleFile="true" />
+  </ItemGroup>
+
+</Project>
