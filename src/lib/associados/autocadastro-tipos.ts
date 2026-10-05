@@ -42,5 +42,6 @@ export interface PlanoAutocadastro {
   vencimentoNaContratacao: boolean;
 }
 
-export const FOTO_TAMANHO_MAXIMO = 900 * 1024;
+/** Limite dos leitores faciais Hikvision (a foto do associado vai para o aparelho). */
+export const FOTO_TAMANHO_MAXIMO = 200 * 1024;
 export const SENHA_TAMANHO_MINIMO = 8;

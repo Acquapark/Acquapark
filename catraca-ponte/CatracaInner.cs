@@ -1,4 +1,5 @@
 using System.Text;
+using System.Threading.Channels;
 
 namespace CatracaPonte;
 
@@ -6,12 +7,21 @@ namespace CatracaPonte;
 /// Conversa com o Inner da catraca Topdata em modo online: cada QR Code lido
 /// chega aqui, é validado no sistema, e a ponte manda liberar o giro ou
 /// mostrar "acesso negado". Em modo online o Inner não decide nada sozinho.
+/// Também recebe pedidos de fora (o leitor facial) por uma fila, atendidos no
+/// mesmo laço — a EasyInner não pode ser chamada de duas threads ao mesmo tempo.
 /// </summary>
-public sealed class CatracaInner
+public sealed class CatracaInner : ILiberador
 {
     private readonly Configuracao _config;
     private readonly SistemaApi _api;
     private readonly int _inner;
+    private readonly Channel<(string Quem, Validacao Resultado, long Quando)> _pedidos =
+        Channel.CreateUnbounded<(string, Validacao, long)>(new UnboundedChannelOptions { SingleReader = true });
+
+    /// <summary>Pedido mais velho que isso é descartado (ex: o Inner estava desconectado) — a pessoa já saiu da frente da catraca.</summary>
+    private const int ValidadePedidoMs = 8000;
+
+    public void Pedir(string quem, Validacao resultado) => _pedidos.Writer.TryWrite((quem, resultado, Environment.TickCount64));
 
     public CatracaInner(Configuracao config, SistemaApi api)
     {
@@ -126,6 +136,20 @@ public sealed class CatracaInner
 
         while (!parar.IsCancellationRequested)
         {
+            // Pedidos do leitor facial (já validados no sistema pela ponte).
+            if (_pedidos.Reader.TryRead(out var pedido))
+            {
+                if (Environment.TickCount64 - pedido.Quando > ValidadePedidoMs)
+                {
+                    Log.Info($"Ignorado   {pedido.Quem}: pedido antigo (a catraca estava ocupada ou desconectada).");
+                    continue;
+                }
+                await TratarResultadoAsync(pedido.Quem, pedido.Resultado, parar);
+                await RearmarAsync(parar);
+                ultimoPing = Environment.TickCount64;
+                continue;
+            }
+
             cartao.Clear();
             var ret = EasyInner.ReceberDadosOnLine(
                 _inner, ref origem, ref complemento, cartao, ref dia, ref mes, ref ano, ref hora, ref minuto, ref segundo);
@@ -157,16 +181,20 @@ public sealed class CatracaInner
     {
         var codigo = Codigo.Normalizar(lido, _config.Catraca.DigitosCodigo);
         var resultado = await _api.ValidarAsync(codigo);
+        await TratarResultadoAsync(codigo, resultado, parar);
+    }
 
+    private async Task TratarResultadoAsync(string codigo, Validacao resultado, CancellationToken parar)
+    {
         if (resultado.Autorizado)
         {
-            Log.Info($"LIBERADO  {codigo}");
+            Log.Info($"LIBERADO  {codigo}{(resultado.Nome is null ? "" : $" ({resultado.Nome})")}");
             EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, _config.Mensagens.Liberado);
             await LiberarAsync(parar);
             return;
         }
 
-        Log.Info($"NEGADO    {codigo}{(resultado.FalhaConexao ? " (falha ao falar com o sistema)" : "")}");
+        Log.Info($"NEGADO    {codigo}{(resultado.FalhaConexao ? " (falha ao falar com o sistema)" : resultado.Motivo is null ? "" : $" ({resultado.Motivo})")}");
         var mensagem = resultado.FalhaConexao ? _config.Mensagens.SemConexao : _config.Mensagens.Negado;
         EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, mensagem);
         EasyInner.AcionarBipLongo(_inner);

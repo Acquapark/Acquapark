@@ -39,6 +39,10 @@ export async function proxy(request: NextRequest) {
   // valida tudo no servidor, sem depender de sessão.
   if (pathname === "/cadastro" || pathname.startsWith("/cadastro/")) return response;
 
+  // Rotas da ponte da catraca: autenticadas pela chave x-api-key na própria
+  // rota, sem sessão. Sem isto, o GET da lista de rostos ia parar no /login.
+  if (pathname.startsWith("/api/catraca/")) return response;
+
   const isPortalPath = pathname.startsWith("/portal");
   const isPortalPublic = PORTAL_PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
   const isAdminLoginPage = pathname === "/login";

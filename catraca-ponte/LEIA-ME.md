@@ -56,6 +56,65 @@ SDK que vem com a DLL:
 Se uma função não existir na sua versão da DLL, a ponte avisa o nome dela
 ao abrir — as declarações ficam todas em `EasyInner.cs`.
 
+## Leitor facial Hikvision (DS-K1T673DX)
+
+A mesma ponte também cuida do leitor facial. O leitor reconhece os rostos
+**sozinho**, mas só de quem está cadastrado nele — por isso a ponte:
+
+1. **sincroniza**: a cada `IntervaloSincronizacaoMin` minutos busca no sistema
+   (`GET /api/catraca/faces`) os associados com foto (menos os inativos) e
+   cadastra, atualiza ou remove no leitor. O cadastro no leitor usa o **número
+   do associado**;
+2. **na entrada**: quando o leitor reconhece alguém, a ponte pergunta ao sistema
+   (`POST /api/catraca/validar` com o número do associado) e só libera se o
+   sistema autorizar — mesma regra do QR Code, com registro no Controle de Acesso.
+
+### Preparar o leitor
+
+1. Ative o leitor e defina a senha de administrador (no próprio aparelho ou
+   pelo programa **SADP** da Hikvision).
+2. Dê a ele um **IP fixo** na mesma rede do PC da ponte. Teste abrindo
+   `http://IP_DO_LEITOR` no navegador do PC: tem que aparecer a tela de login.
+3. Confira se o **ISAPI** está habilitado (Configuração → Rede → Serviço de
+   Rede / Integração → ISAPI), se o seu firmware tiver essa opção.
+4. Modo de autenticação: **rosto** (ou "cartão ou rosto").
+5. Se for usar `"Liberacao": "Catraca"` (leitor só na rede), não precisa ligar o
+   relé do leitor em nada.
+6. Se o relé do leitor estiver ligado na catraca (`"Liberacao": "ReleLeitor"`),
+   o leitor **não pode abrir sozinho** ao reconhecer, senão quem estiver
+   inadimplente ou bloqueado entraria. Deixe o relé dele desligado da
+   autenticação local (consulte o manual/suporte Hikvision do seu firmware) —
+   quem aciona é a ponte, depois que o sistema autoriza.
+
+### Configurar a ponte
+
+No `appsettings.json`, seção `LeitorFacial`: `"Habilitado": true`, `Ip`,
+`Usuario`, `Senha` e `Liberacao`. Reinicie a ponte. No log deve aparecer
+`Leitor facial: ouvindo os reconhecimentos` e, alguns segundos depois,
+`Leitor facial sincronizado: N enviado(s)...`.
+
+A ponte guarda o que já enviou em `leitor-facial-sincronizados.json`. Para
+reenviar todo mundo (ex: o leitor foi resetado), apague esse arquivo e
+reinicie a ponte.
+
+### Se o leitor facial não funcionar
+
+Assim como a parte da catraca, **não foi testado no aparelho**: foi escrito a
+partir da documentação ISAPI da Hikvision. O log mostra a resposta completa
+do leitor em cada erro.
+
+| Sintoma | O que conferir |
+| --- | --- |
+| `Usuário ou senha do leitor facial incorretos` | `Usuario`/`Senha`; alguns firmwares bloqueiam o usuário após tentativas erradas |
+| `Leitor facial sem conexão` | IP, porta, cabo/rede, o PC alcança o IP do leitor |
+| `não cadastrou` / `recusou a foto` | O motivo vem no log. Foto recusada: rosto de frente, bem iluminado, sem óculos escuros — troque no perfil do associado |
+| Reconhece mas nada acontece | O log mostra `evento ignorado ... (major X, sub Y)`: coloque o `Y` em `SubEventosReconhecido` |
+| Reconhece, autoriza, mas não gira | `Liberacao`; com `"Catraca"`, o `SentidoLiberacao` da seção `Catraca` |
+
+Teste sem catraca: `CatracaPonte.exe --simular` com o leitor habilitado — a
+sincronização e os reconhecimentos acontecem de verdade, e a liberação só
+aparece no log.
+
 ## Gerar o .exe de novo (desenvolvedor)
 
 Com o .NET 8 SDK instalado, nesta pasta:

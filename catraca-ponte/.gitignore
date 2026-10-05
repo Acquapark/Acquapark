@@ -4,3 +4,5 @@ publicado/
 logs/
 # DLL proprietária da Topdata (vem no SDK EasyInner) — não versionar.
 EasyInner.dll
+# Estado local da sincronização com o leitor facial (gerado pela ponte).
+leitor-facial-sincronizados.json

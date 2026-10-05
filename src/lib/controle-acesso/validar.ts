@@ -147,3 +147,29 @@ export async function validarPorCodigo(supabase: SupabaseClient, codigoBruto: st
     ? validarCredencial(supabase, credencial as unknown as Record<string, unknown>)
     : { autorizado: false, titulo: "Código não reconhecido", detalhe: "", motivo: "Ingresso ou credencial não encontrado." };
 }
+
+/**
+ * Validação vinda do leitor facial: o aparelho identifica a pessoa pelo número
+ * do associado (cadastrado nele como "employeeNo" pela ponte). A regra é a
+ * mesma da credencial — inclusive o registro em `acessos` —, usando a
+ * credencial ativa do associado.
+ */
+export async function validarPorAssociado(supabase: SupabaseClient, numeroAssociado: string): Promise<ValidacaoResultado> {
+  const numero = numeroAssociado.trim();
+  const { data: associado } = await supabase.from("associados").select("id, nome").eq("numero", numero).maybeSingle();
+  if (!associado) {
+    return { autorizado: false, titulo: "Associado não encontrado", detalhe: "", motivo: `Nenhum associado com o número ${numero}.` };
+  }
+
+  const { data: credencial } = await supabase
+    .from("credenciais")
+    .select("id, ativa, regra_reentrada, associados ( nome, status, planos ( nome ) )")
+    .eq("associado_id", associado.id)
+    .order("ativa", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return credencial
+    ? validarCredencial(supabase, credencial as unknown as Record<string, unknown>)
+    : { autorizado: false, titulo: associado.nome as string, detalhe: "Associado", motivo: "Associado sem credencial gerada." };
+}

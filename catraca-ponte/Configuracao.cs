@@ -9,6 +9,9 @@ public sealed class Configuracao
     public CatracaConfig Catraca { get; set; } = new();
     public MensagensConfig Mensagens { get; set; } = new();
     public AvancadoConfig Avancado { get; set; } = new();
+    public LeitorFacialConfig LeitorFacial { get; set; } = new();
+
+    public static readonly string[] LiberacoesFaciaisValidas = ["Catraca", "ReleLeitor"];
 
     public static readonly string[] SentidosValidos =
         ["Entrada", "EntradaInvertida", "Saida", "SaidaInvertida", "DoisSentidos"];
@@ -34,6 +37,17 @@ public sealed class Configuracao
                 $"Catraca.SentidoLiberacao inválido: \"{config.Catraca.SentidoLiberacao}\". Use um destes: {string.Join(", ", SentidosValidos)}.");
         if (config.Sistema.Url.Contains("SEU_DOMINIO") || config.Sistema.ChaveApi.StartsWith("COLE_AQUI"))
             throw new InvalidDataException("Preencha Sistema.Url e Sistema.ChaveApi no appsettings.json.");
+
+        var facial = config.LeitorFacial;
+        if (facial.Habilitado)
+        {
+            facial.Liberacao = facial.Liberacao.Trim();
+            if (!LiberacoesFaciaisValidas.Contains(facial.Liberacao))
+                throw new InvalidDataException(
+                    $"LeitorFacial.Liberacao inválido: \"{facial.Liberacao}\". Use um destes: {string.Join(", ", LiberacoesFaciaisValidas)}.");
+            if (string.IsNullOrWhiteSpace(facial.Ip) || facial.Senha.StartsWith("COLE_AQUI"))
+                throw new InvalidDataException("Preencha LeitorFacial.Ip e LeitorFacial.Senha no appsettings.json (ou desligue com \"Habilitado\": false).");
+        }
 
         return config;
     }
@@ -63,6 +77,27 @@ public sealed class MensagensConfig
     public string Liberado { get; set; } = "   BEM VINDO!";
     public string Negado { get; set; } = " ACESSO NEGADO";
     public string SemConexao { get; set; } = "  SEM CONEXAO   CHAME ATENDENTE";
+}
+
+/// <summary>Leitor facial Hikvision (ex: DS-K1T673DX), falando ISAPI pela rede local.</summary>
+public sealed class LeitorFacialConfig
+{
+    public bool Habilitado { get; set; }
+    public string Ip { get; set; } = "";
+    public int Porta { get; set; } = 80;
+    public bool UsarHttps { get; set; }
+    public string Usuario { get; set; } = "admin";
+    public string Senha { get; set; } = "";
+    /// <summary>"Catraca": a ponte libera o giro pela EasyInner. "ReleLeitor": a ponte manda o leitor acionar o próprio relé.</summary>
+    public string Liberacao { get; set; } = "Catraca";
+    /// <summary>Número da porta (relé) do leitor, usado com Liberacao = "ReleLeitor".</summary>
+    public int NumeroPorta { get; set; } = 1;
+    public int IntervaloSincronizacaoMin { get; set; } = 10;
+    /// <summary>O leitor manda vários eventos seguidos para o mesmo rosto: ignora repetições dentro deste tempo.</summary>
+    public int IgnorarRepeticaoMs { get; set; } = 6000;
+    /// <summary>Subtipos de evento (majorEventType 5) que contam como "rosto reconhecido". 75 = autenticação facial aprovada.</summary>
+    public int[] SubEventosReconhecido { get; set; } = [75];
+    public int TimeoutMs { get; set; } = 10000;
 }
 
 public sealed class AvancadoConfig
