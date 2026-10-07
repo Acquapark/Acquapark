@@ -68,6 +68,8 @@ public sealed class CatracaConfig
     public string SentidoLiberacao { get; set; } = "Entrada";
     public int DigitosCodigo { get; set; } = 14;
     public int TempoMensagemNegadoMs { get; set; } = 2500;
+    /// <summary>Quanto tempo o visor mostra a mensagem de boas-vindas depois de liberar.</summary>
+    public int TempoMensagemLiberadoMs { get; set; } = 3000;
     public int IntervaloPingMs { get; set; } = 5000;
 }
 

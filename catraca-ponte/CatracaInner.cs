@@ -21,6 +21,14 @@ public sealed class CatracaInner : ILiberador
     /// <summary>Pedido mais velho que isso é descartado (ex: o Inner estava desconectado) — a pessoa já saiu da frente da catraca.</summary>
     private const int ValidadePedidoMs = 8000;
 
+    /// <summary>
+    /// Até quando o visor mantém a mensagem de boas-vindas. A leitura é rearmada
+    /// na hora (como sempre foi), mas o rearme mostra "BEM VINDO" em vez da
+    /// mensagem padrão até esse momento — antes, o rearme logo após liberar
+    /// apagava as boas-vindas antes de aparecerem.
+    /// </summary>
+    private long _boasVindasAte;
+
     public void Pedir(string quem, Validacao resultado) => _pedidos.Writer.TryWrite((quem, resultado, Environment.TickCount64));
 
     public CatracaInner(Configuracao config, SistemaApi api)
@@ -122,7 +130,8 @@ public sealed class CatracaInner : ILiberador
     private async Task RearmarAsync(CancellationToken parar)
     {
         var a = _config.Avancado;
-        await RepetirAsync(() => EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, _config.Mensagens.Padrao), "EnviarMensagemPadraoOnLine", parar);
+        var mensagem = Environment.TickCount64 < _boasVindasAte ? _config.Mensagens.Liberado : _config.Mensagens.Padrao;
+        await RepetirAsync(() => EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, mensagem), "EnviarMensagemPadraoOnLine", parar);
         await RepetirAsync(
             () => EasyInner.EnviarFormasEntradasOnLine(_inner, 0, 0, a.FormaEntrada, a.TempoTeclado, a.PosicaoCursorTeclado),
             "EnviarFormasEntradasOnLine", parar);
@@ -145,6 +154,15 @@ public sealed class CatracaInner : ILiberador
                     continue;
                 }
                 await TratarResultadoAsync(pedido.Quem, pedido.Resultado, parar);
+                await RearmarAsync(parar);
+                ultimoPing = Environment.TickCount64;
+                continue;
+            }
+
+            // Fim do tempo das boas-vindas: volta o visor à mensagem padrão.
+            if (_boasVindasAte != 0 && Environment.TickCount64 >= _boasVindasAte)
+            {
+                _boasVindasAte = 0;
                 await RearmarAsync(parar);
                 ultimoPing = Environment.TickCount64;
                 continue;
@@ -189,12 +207,14 @@ public sealed class CatracaInner : ILiberador
         if (resultado.Autorizado)
         {
             Log.Info($"LIBERADO  {codigo}{(resultado.Nome is null ? "" : $" ({resultado.Nome})")}");
+            _boasVindasAte = Environment.TickCount64 + Math.Max(0, _config.Catraca.TempoMensagemLiberadoMs);
             EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, _config.Mensagens.Liberado);
             await LiberarAsync(parar);
             return;
         }
 
         Log.Info($"NEGADO    {codigo}{(resultado.FalhaConexao ? " (falha ao falar com o sistema)" : resultado.Motivo is null ? "" : $" ({resultado.Motivo})")}");
+        _boasVindasAte = 0; // uma negação logo após um acesso liberado não pode voltar ao "BEM VINDO"
         var mensagem = resultado.FalhaConexao ? _config.Mensagens.SemConexao : _config.Mensagens.Negado;
         EasyInner.EnviarMensagemPadraoOnLine(_inner, 0, mensagem);
         EasyInner.AcionarBipLongo(_inner);
