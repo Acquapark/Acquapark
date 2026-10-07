@@ -372,3 +372,79 @@ export async function definirTipoCortesia(tipoId: string | null) {
   revalidatePath("/configuracoes");
   return { success: true };
 }
+
+export interface IngressoVendidoDoTipo extends IngressoVendido {
+  tipoId: string;
+}
+
+/**
+ * Venda com um ou mais tipos de ingresso (Ctrl + clique na Bilheteria). Um tipo
+ * só usa a mesma função de sempre; vários tipos usam `vender_ingressos_varios`,
+ * que emite tudo na mesma transação — se qualquer parte falhar, nada é
+ * emitido nem cobrado.
+ */
+export async function venderIngressos(params: {
+  itens: { tipoId: string; quantidade: number }[];
+  comprador: string;
+  dataUtilizacao: string;
+  formaPagamento: string;
+  cupomCodigo?: string;
+}): Promise<{ error: string } | { ingressos: IngressoVendidoDoTipo[] }> {
+  const negado = await exigirPermissao("ingressos.criar");
+  if (negado) return { error: negado.error };
+
+  const itens = params.itens.filter((i) => i.tipoId && i.quantidade > 0);
+  if (itens.length === 0) return { error: "Selecione o tipo de ingresso." };
+  if (new Set(itens.map((i) => i.tipoId)).size !== itens.length) return { error: "Tipo de ingresso repetido na venda." };
+  if (itens.some((i) => !Number.isInteger(i.quantidade))) return { error: "Quantidade inválida." };
+  const total = itens.reduce((s, i) => s + i.quantidade, 0);
+  if (total < 1 || total > 50) return { error: "A venda deve ter entre 1 e 50 ingressos no total." };
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(params.dataUtilizacao)) return { error: "Informe a data de utilização." };
+  if (!FORMAS_PAGAMENTO.includes(params.formaPagamento)) return { error: "Selecione a forma de pagamento." };
+
+  if (itens.length === 1) {
+    const result = await venderIngresso({ ...params, tipoId: itens[0].tipoId, quantidade: itens[0].quantidade });
+    if ("error" in result) return result;
+    return { ingressos: result.ingressos.map((i) => ({ ...i, tipoId: itens[0].tipoId })) };
+  }
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("vender_ingressos_varios", {
+    p_itens: itens.map((i) => ({ tipo_id: i.tipoId, quantidade: i.quantidade })),
+    p_comprador: params.comprador.trim() || null,
+    p_data_utilizacao: params.dataUtilizacao,
+    p_forma_pagamento: params.formaPagamento,
+    p_cupom_codigo: params.cupomCodigo?.trim() || null,
+  });
+  if (error || !Array.isArray(data) || data.length === 0) {
+    if (error?.code === "PGRST202") {
+      return { error: "A venda de vários tipos ainda não foi ativada no banco (rode supabase/venda_varios_tipos.sql)." };
+    }
+    return { error: error?.message ?? "Não foi possível emitir os ingressos." };
+  }
+
+  revalidate();
+  revalidatePath("/caixa");
+  const linhas = data as {
+    id: string;
+    numero: string;
+    codigo: string;
+    tipo_id: string;
+    valor: number;
+    valor_desconto: number;
+    data_utilizacao: string;
+    sem_expiracao: boolean;
+  }[];
+  return {
+    ingressos: linhas.map((l) => ({
+      id: l.id,
+      numero: l.numero,
+      codigo: l.codigo,
+      tipoId: l.tipo_id,
+      valor: Number(l.valor),
+      valorDesconto: Number(l.valor_desconto),
+      dataUtilizacao: l.data_utilizacao,
+      semExpiracao: l.sem_expiracao,
+    })),
+  };
+}
