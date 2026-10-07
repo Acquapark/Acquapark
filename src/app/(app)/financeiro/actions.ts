@@ -337,11 +337,24 @@ async function desfazerPagamentoDaMensalidade(
 ): Promise<{ error: string } | { associadoId: string }> {
   const { data: mensalidade, error: fetchError } = await supabase
     .from("mensalidades")
-    .select("id, associado_id, status, numero_parcela, gateway_charge_id")
+    .select("id, associado_id, status, numero_parcela, gateway_charge_id, asaas_status")
     .eq("id", mensalidadeId)
     .maybeSingle();
   if (fetchError || !mensalidade) return { error: "Mensalidade não encontrada." };
   if (mensalidade.status !== "Pago") return { error: "Esta mensalidade não está paga." };
+
+  // Baixa manual que tinha sido informada à Asaas ("recebida em dinheiro"):
+  // reabre a cobrança lá antes, para ela voltar a poder ser paga.
+  if (mensalidade.gateway_charge_id && mensalidade.asaas_status === "RECEIVED_IN_CASH") {
+    try {
+      await paymentGateway.desfazerRecebimentoManual(mensalidade.gateway_charge_id as string);
+    } catch (e) {
+      return {
+        error: `A Asaas não reabriu a cobrança (${e instanceof Error ? e.message : "erro desconhecido"}). Nada foi alterado — tente de novo ou desfaça o recebimento direto na Asaas.`,
+      };
+    }
+    await supabase.from("mensalidades").update({ asaas_status: "PENDING" }).eq("id", mensalidadeId);
+  }
 
   const { data: removidos, error: deleteError } = await supabase
     .from("pagamentos")
@@ -390,11 +403,18 @@ export async function excluirRecebimento(pagamentoId: string): Promise<{ error: 
   // quem desfaz é a exclusão da venda na Bilheteria.
   if (pagamento.ingresso_id) return { error: "Recebimento de ingresso: exclua a venda pela Bilheteria." };
 
-  if (pagamento.mensalidade_id) {
+  const { data: parcela } = pagamento.mensalidade_id
+    ? await supabase.from("mensalidades").select("status, associado_id").eq("id", pagamento.mensalidade_id).maybeSingle()
+    : { data: null };
+
+  if (parcela && parcela.status === "Pago") {
     const result = await desfazerPagamentoDaMensalidade(supabase, pagamento.mensalidade_id as string);
     if ("error" in result) return result;
     revalidatePath(`/associados/${result.associadoId}`);
   } else {
+    // Lançamento avulso — ou recebimento "solto", de parcela que já não está
+    // paga (ex: reaberta por um aviso de cancelamento da Asaas): só apaga o lançamento.
+    if (parcela) revalidatePath(`/associados/${parcela.associado_id}`);
     const { error } = await supabase.from("pagamentos").delete().eq("id", pagamentoId);
     if (error) return { error: error.message };
   }

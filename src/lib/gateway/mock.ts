@@ -95,6 +95,12 @@ export class MockGateway implements PaymentGateway {
   async cancelarCobranca(chargeId: string): Promise<{ cancelada: boolean }> {
     return { cancelada: cobrancasSimuladas.delete(chargeId) || true };
   }
+
+  async informarRecebimentoManual(chargeId: string): Promise<void> {
+    cobrancasSimuladas.delete(chargeId);
+  }
+
+  async desfazerRecebimentoManual(): Promise<void> {}
 }
 
 export const paymentGateway: PaymentGateway = new MockGateway();

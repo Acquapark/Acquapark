@@ -94,4 +94,11 @@ export interface PaymentGateway {
   ): Promise<CobrancaResumo>;
   /** Cancela (remove) a cobrança no gateway. Não representa estorno de um pagamento já confirmado. */
   cancelarCobranca(chargeId: string): Promise<{ cancelada: boolean }>;
+  /**
+   * Avisa o gateway que a cobrança foi paga por fora dele (baixa manual no
+   * balcão): ela fica como recebida e para de ser cobrada do associado.
+   */
+  informarRecebimentoManual(chargeId: string, params: { valor: number; data: string }): Promise<void>;
+  /** Desfaz o `informarRecebimentoManual`: a cobrança volta a ficar em aberto no gateway. */
+  desfazerRecebimentoManual(chargeId: string): Promise<void>;
 }

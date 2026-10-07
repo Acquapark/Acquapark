@@ -301,4 +301,16 @@ export class AsaasGateway implements PaymentGateway {
     const resultado = await asaasFetch<{ deleted: boolean; id: string }>(`/payments/${chargeId}`, { method: "DELETE" });
     return { cancelada: resultado.deleted };
   }
+
+  async informarRecebimentoManual(chargeId: string, params: { valor: number; data: string }): Promise<void> {
+    // "Confirmar recebimento em dinheiro" da Asaas: a cobrança passa a RECEIVED_IN_CASH.
+    await asaasFetch(`/payments/${chargeId}/receiveInCash`, {
+      method: "POST",
+      body: JSON.stringify({ paymentDate: params.data, value: params.valor, notifyCustomer: false }),
+    });
+  }
+
+  async desfazerRecebimentoManual(chargeId: string): Promise<void> {
+    await asaasFetch(`/payments/${chargeId}/undoReceivedInCash`, { method: "POST" });
+  }
 }

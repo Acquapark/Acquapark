@@ -42,6 +42,8 @@ export function RegistrarPagamentoModal({
       setError(result.error);
       return;
     }
+    // Pagamento registrado, mas a Asaas não confirmou a baixa da cobrança.
+    if ("aviso" in result && result.aviso) window.alert(result.aviso);
     router.refresh();
     onClose();
   }

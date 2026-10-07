@@ -60,6 +60,30 @@ async function reverterPagamento(chargeId: string) {
   if (!mensalidade) return { success: true, ignorado: true };
   if (mensalidade.status !== "Pago" && mensalidade.status !== "Em processamento") return { success: true, ignorado: true };
 
+  // Paga no balcão (baixa manual), não por esta cobrança: o pagamento continua
+  // valendo. Só desliga a cobrança cancelada — antes, a parcela voltava para
+  // "Pendente" com o recebimento manual ainda lançado.
+  if (mensalidade.status === "Pago") {
+    const { count: pagoPelaCobranca } = await admin
+      .from("pagamentos")
+      .select("id", { count: "exact", head: true })
+      .eq("mensalidade_id", mensalidade.id)
+      .eq("referencia", chargeId);
+    if (!pagoPelaCobranca) {
+      await admin.from("mensalidades").update({ gateway_charge_id: null }).eq("id", mensalidade.id);
+      return { success: true, ignorado: true };
+    }
+  }
+
+  // Estorno/cancelamento do pagamento feito por esta cobrança: o lançamento
+  // dela sai dos recebimentos junto com a volta da parcela para "Pendente".
+  const { error: pagamentoError } = await admin
+    .from("pagamentos")
+    .delete()
+    .eq("mensalidade_id", mensalidade.id)
+    .eq("referencia", chargeId);
+  if (pagamentoError) return { error: pagamentoError.message };
+
   const { error } = await admin
     .from("mensalidades")
     .update({ status: "Pendente", gateway_charge_id: null, forma_pagamento: null, pago_em: null })

@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { apagarLogins, loginsDoAssociado } from "@/lib/associados/acesso-portal";
 import { resgatarCortesia } from "@/lib/cortesia";
+import { quitarCobrancaDeBaixaManual } from "@/lib/gateway/recebimento-manual";
 import { AssociadoFormState } from "@/components/associados/form-types";
 import { AssociadoStatus } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
@@ -263,7 +264,7 @@ const MENSALIDADE_CANCELAVEL = new Set(["Pendente", "Vencido", "Em processamento
 async function cancelarContratoEParcelasDoAssociado(
   supabase: SupabaseClient,
   associadoId: string,
-): Promise<{ parcelasCanceladas: number; falhas: string[] }> {
+): Promise<{ parcelasCanceladas: number; falhas: string[]; avisos: string[] }> {
   const { data: mensalidades } = await supabase
     .from("mensalidades")
     .select("id, numero_parcela, gateway_charge_id")
@@ -298,9 +299,28 @@ async function cancelarContratoEParcelasDoAssociado(
     }
   }
 
+  const avisos: string[] = [];
+  // Parcelas pagas no balcão antes da correção que avisa a Asaas na baixa:
+  // a cobrança delas pode estar aberta lá ainda e continuaria cobrando.
+  const { data: pagas } = await supabase
+    .from("mensalidades")
+    .select("id, numero_parcela, valor, gateway_charge_id, asaas_status")
+    .eq("associado_id", associadoId)
+    .eq("status", "Pago")
+    .not("gateway_charge_id", "is", null);
+  for (const m of pagas ?? []) {
+    const falha = await quitarCobrancaDeBaixaManual(supabase, {
+      id: m.id as string,
+      valor: Number(m.valor),
+      gatewayChargeId: m.gateway_charge_id as string,
+      asaasStatus: (m.asaas_status as string | null) ?? null,
+    });
+    if (falha) avisos.push(`Parcela ${m.numero_parcela ?? "—"} (paga no balcão) continua aberta na Asaas: ${falha}`);
+  }
+
   await supabase.from("contratos").update({ status: "Cancelado" }).eq("associado_id", associadoId).eq("status", "Ativo");
 
-  return { parcelasCanceladas, falhas };
+  return { parcelasCanceladas, falhas, avisos };
 }
 
 export async function updateAssociadoStatus(
@@ -318,7 +338,8 @@ export async function updateAssociadoStatus(
   if (status === "Inativo") {
     const resultado = await cancelarContratoEParcelasDoAssociado(supabase, id);
     parcelasCanceladas = resultado.parcelasCanceladas;
-    if (resultado.falhas.length > 0) falhasCancelamento = resultado.falhas;
+    const problemas = [...resultado.falhas, ...resultado.avisos];
+    if (problemas.length > 0) falhasCancelamento = problemas;
   }
 
   revalidatePath(`/associados/${id}`);
@@ -439,15 +460,29 @@ export async function registrarPagamento(
     .from("mensalidades")
     .update({ status: "Pago", forma_pagamento: params.formaPagamento, pago_em: new Date().toISOString() })
     .eq("id", mensalidadeId)
-    .select("numero_parcela")
+    .select("numero_parcela, valor, gateway_charge_id, asaas_status")
     .single();
   if (mensalidadeError) return { error: mensalidadeError.message };
 
   await ativarAssociadoSeParcela1Paga(supabase, associadoId, mensalidade?.numero_parcela as number | null);
 
+  // Pago no balcão: a cobrança da Asaas precisa ser quitada lá também, senão
+  // ela continua aberta (e cobrando o associado) mesmo com a parcela paga aqui.
+  const falhaAsaas = await quitarCobrancaDeBaixaManual(supabase, {
+    id: mensalidadeId,
+    valor: Number(mensalidade?.valor ?? params.valor),
+    gatewayChargeId: (mensalidade?.gateway_charge_id as string | null) ?? null,
+    asaasStatus: (mensalidade?.asaas_status as string | null) ?? null,
+  });
+
   revalidatePath(`/associados/${associadoId}`);
   revalidatePath("/financeiro");
-  return { success: true };
+  return {
+    success: true,
+    aviso: falhaAsaas
+      ? `Pagamento registrado, mas a cobrança na Asaas não foi baixada (${falhaAsaas}). Confirme o recebimento em dinheiro direto na Asaas.`
+      : undefined,
+  };
 }
 
 /**
