@@ -45,7 +45,7 @@ public sealed class Configuracao
             if (!LiberacoesFaciaisValidas.Contains(facial.Liberacao))
                 throw new InvalidDataException(
                     $"LeitorFacial.Liberacao inválido: \"{facial.Liberacao}\". Use um destes: {string.Join(", ", LiberacoesFaciaisValidas)}.");
-            if (string.IsNullOrWhiteSpace(facial.Ip) || facial.Senha.StartsWith("COLE_AQUI"))
+            if (string.IsNullOrWhiteSpace(facial.Ip) || string.IsNullOrWhiteSpace(facial.Senha) || facial.Senha.Contains("_AQUI_"))
                 throw new InvalidDataException("Preencha LeitorFacial.Ip e LeitorFacial.Senha no appsettings.json (ou desligue com \"Habilitado\": false).");
         }
 

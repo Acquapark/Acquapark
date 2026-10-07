@@ -82,11 +82,15 @@ public sealed class HikvisionIsapi : IDisposable
     {
         var dados = JsonSerializer.Serialize(new { faceLibType = "blackFD", FDID = "1", FPID = numero });
 
-        // FDSetUp cria ou substitui; firmwares mais antigos só têm FaceDataRecord (cria).
+        // FDSetUp cria ou substitui; alguns firmwares só aceitam FaceDataRecord (cria).
         var setup = await EnviarRostoAsync(HttpMethod.Put, "ISAPI/Intelligent/FDLib/FDSetUp?format=json", dados, jpeg, parar);
-        if (setup.Ok || !setup.NaoSuportado)
+        if (setup.Ok || setup.Http == 401)
             return setup;
-        return await EnviarRostoAsync(HttpMethod.Post, "ISAPI/Intelligent/FDLib/FaceDataRecord?format=json", dados, jpeg, parar);
+        var record = await EnviarRostoAsync(HttpMethod.Post, "ISAPI/Intelligent/FDLib/FaceDataRecord?format=json", dados, jpeg, parar);
+        if (record.Ok)
+            return record;
+        // Os dois falharam: devolve os dois motivos para o log.
+        return record with { Corpo = $"FDSetUp: {setup.SubStatus} {setup.Corpo} | FaceDataRecord: {record.SubStatus} {record.Corpo}" };
     }
 
     /// <summary>Remove a pessoa e o rosto dela do aparelho.</summary>
@@ -113,6 +117,8 @@ public sealed class HikvisionIsapi : IDisposable
     public async Task OuvirEventosAsync(Func<JsonElement, Task> aoReceber, CancellationToken parar)
     {
         using var resposta = await _stream.GetAsync("ISAPI/Event/notification/alertStream", HttpCompletionOption.ResponseHeadersRead, parar);
+        if (resposta.StatusCode == HttpStatusCode.Unauthorized)
+            throw new UnauthorizedAccessException("o leitor recusou o usuário/senha (HTTP 401)");
         if (!resposta.IsSuccessStatusCode)
             throw new HttpRequestException($"alertStream respondeu HTTP {(int)resposta.StatusCode}.");
 
@@ -147,16 +153,37 @@ public sealed class HikvisionIsapi : IDisposable
         return await LerAsync(resposta, parar);
     }
 
+    /// <summary>
+    /// Monta o multipart "à mão", no formato dos exemplos da Hikvision. O
+    /// MultipartFormDataContent do .NET põe o boundary entre aspas no
+    /// Content-Type, acrescenta "charset" e "filename*=" — e o leitor (DS-K1T673DX)
+    /// respondeu "MessageParametersLack" a esse formato.
+    /// </summary>
     private async Task<RespostaIsapi> EnviarRostoAsync(HttpMethod metodo, string rota, string dados, byte[] jpeg, CancellationToken parar)
     {
-        using var multipart = new MultipartFormDataContent();
-        var parteDados = new StringContent(dados, Encoding.UTF8, "application/json");
-        multipart.Add(parteDados, "FaceDataRecord");
-        var parteImagem = new ByteArrayContent(jpeg);
-        parteImagem.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
-        multipart.Add(parteImagem, "img", "rosto.jpg");
+        var boundary = "----AquaPark" + Guid.NewGuid().ToString("N");
+        var json = Encoding.UTF8.GetBytes(dados);
+        using var corpo = new MemoryStream();
+        void Escrever(string texto) => corpo.Write(Encoding.ASCII.GetBytes(texto));
 
-        using var requisicao = new HttpRequestMessage(metodo, rota) { Content = multipart };
+        const string Fim = "\r\n";
+        Escrever($"--{boundary}{Fim}");
+        Escrever($"Content-Disposition: form-data; name=\"FaceDataRecord\";{Fim}");
+        Escrever($"Content-Type: application/json{Fim}");
+        Escrever($"Content-Length: {json.Length}{Fim}{Fim}");
+        corpo.Write(json);
+        Escrever($"{Fim}--{boundary}{Fim}");
+        Escrever($"Content-Disposition: form-data; name=\"img\"; filename=\"rosto.jpg\";{Fim}");
+        Escrever($"Content-Type: image/jpeg{Fim}");
+        Escrever($"Content-Length: {jpeg.Length}{Fim}{Fim}");
+        corpo.Write(jpeg);
+        Escrever($"{Fim}--{boundary}--{Fim}");
+
+        var conteudo = new ByteArrayContent(corpo.ToArray());
+        // TryAddWithoutValidation: sem aspas no boundary (o leitor não as aceita).
+        conteudo.Headers.TryAddWithoutValidation("Content-Type", $"multipart/form-data; boundary={boundary}");
+
+        using var requisicao = new HttpRequestMessage(metodo, rota) { Content = conteudo };
         using var resposta = await _http.SendAsync(requisicao, parar);
         return await LerAsync(resposta, parar);
     }

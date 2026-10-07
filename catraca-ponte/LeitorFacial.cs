@@ -33,10 +33,47 @@ public sealed class LeitorFacial
         Log.Info($"Leitor facial: {_config.Ip}:{_config.Porta} (liberação pela {(_config.Liberacao == "ReleLeitor" ? "relé do leitor" : "catraca")}).");
         try
         {
+            await AguardarLoginAsync(parar);
             await Task.WhenAll(SincronizarSempreAsync(parar), OuvirSempreAsync(parar));
         }
         catch (OperationCanceledException) when (parar.IsCancellationRequested)
         {
+        }
+    }
+
+    /// <summary>Senha recusada: espera bem mais antes de tentar de novo — várias tentativas erradas bloqueiam o leitor por ~30 min.</summary>
+    private static readonly TimeSpan EsperaSenhaRecusada = TimeSpan.FromMinutes(2);
+
+    private const string AvisoSenha =
+        "Confira LeitorFacial.Usuario (normalmente \"admin\") e LeitorFacial.Senha no appsettings.json - a mesma senha que entra na página do leitor no navegador. " +
+        "Muitas tentativas erradas bloqueiam o leitor por cerca de 30 minutos.";
+
+    /// <summary>Confere usuário/senha uma vez antes de começar, com mensagem clara no log.</summary>
+    private async Task AguardarLoginAsync(CancellationToken parar)
+    {
+        while (true)
+        {
+            try
+            {
+                var info = await _isapi.InformacoesAsync(parar);
+                if (info.Http == 401)
+                {
+                    Log.Erro($"Leitor facial: usuário ou senha recusados (HTTP 401). {AvisoSenha} Nova tentativa em 2 minutos.");
+                    await Task.Delay(EsperaSenhaRecusada, parar);
+                    continue;
+                }
+                var modelo = System.Text.RegularExpressions.Regex.Match(info.Corpo, "<model>([^<]*)</model>").Groups[1].Value;
+                var firmware = System.Text.RegularExpressions.Regex.Match(info.Corpo, "<firmwareVersion>([^<]*)</firmwareVersion>").Groups[1].Value;
+                Log.Info(info.Ok
+                    ? $"Leitor facial: login OK ({(modelo.Length > 0 ? modelo : "modelo não informado")}{(firmware.Length > 0 ? $", firmware {firmware}" : "")})."
+                    : $"Leitor facial: respondeu HTTP {info.Http} às informações do aparelho; seguindo mesmo assim.");
+                return;
+            }
+            catch (Exception ex) when ((ex is HttpRequestException or TaskCanceledException) && !parar.IsCancellationRequested)
+            {
+                Log.Erro($"Leitor facial: não respondeu em {_config.Ip}:{_config.Porta} ({ex.Message}). Confira o IP, o cabo e se o PC alcança o leitor. Nova tentativa em 15 s.");
+                await Task.Delay(15000, parar);
+            }
         }
     }
 
@@ -77,6 +114,11 @@ public sealed class LeitorFacial
                 continue;
 
             var pessoa = await _isapi.SalvarPessoaAsync(rosto.Numero, rosto.Nome, parar);
+            if (pessoa.Http == 401)
+            {
+                Log.Erro($"Leitor facial: usuário ou senha recusados (HTTP 401) na sincronização. {AvisoSenha}");
+                return; // não insiste pessoa por pessoa: cada tentativa errada conta para o bloqueio
+            }
             if (!pessoa.Ok)
             {
                 falhas++;
@@ -121,8 +163,7 @@ public sealed class LeitorFacial
             }
         }
 
-        if (enviados > 0 || removidos > 0 || falhas > 0)
-            Log.Info($"Leitor facial sincronizado: {enviados} enviado(s), {removidos} removido(s), {falhas} falha(s). Total no aparelho: {estado.Count}.");
+        Log.Info($"Leitor facial sincronizado: {enviados} enviado(s), {removidos} removido(s), {falhas} falha(s). Total no aparelho: {estado.Count}.");
     }
 
     private Dictionary<string, string> CarregarEstado()
@@ -165,6 +206,12 @@ public sealed class LeitorFacial
                 Log.Info("Leitor facial: ouvindo os reconhecimentos.");
                 await _isapi.OuvirEventosAsync(TratarEventoAsync, parar);
                 Log.Erro("Leitor facial: conexão de eventos encerrada. Reconectando...");
+            }
+            catch (UnauthorizedAccessException) when (!parar.IsCancellationRequested)
+            {
+                Log.Erro($"Leitor facial: usuário ou senha recusados (HTTP 401) ao ouvir os reconhecimentos. {AvisoSenha} Nova tentativa em 2 minutos.");
+                await Task.Delay(EsperaSenhaRecusada, parar);
+                continue;
             }
             catch (Exception ex) when (!parar.IsCancellationRequested)
             {
