@@ -115,6 +115,8 @@ export interface TipoIngresso {
   regraReentrada: RegraReentrada;
   /** Ingressos deste tipo nunca vencem e a catraca sempre libera (não são consumidos). */
   semExpiracao: boolean;
+  /** Aparece na venda online (/comprar). */
+  disponivelOnline: boolean;
   ativo: boolean;
 }
 

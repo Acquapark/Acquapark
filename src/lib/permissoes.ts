@@ -270,6 +270,12 @@ export const MODULOS: ModuloDef[] = [
       },
       { chave: "planos", rotulo: "Planos de associados", acoes: [A.visualizar, A.criar, A.editar] },
       { chave: "tipos_ingresso", rotulo: "Tipos de ingresso", acoes: [A.visualizar, A.criar, A.editar, A.excluir] },
+      {
+        chave: "venda_online",
+        rotulo: "Venda online",
+        descricao: "Ligar a venda de ingressos pela internet e definir limite por dia e datas.",
+        acoes: [A.visualizar, A.editar],
+      },
       { chave: "regras_acesso", rotulo: "Regras de acesso", acoes: [A.visualizar, A.editar] },
       { chave: "catracas", rotulo: "Catracas", acoes: [A.visualizar, A.criar, A.editar, A.excluir] },
       {
@@ -364,6 +370,7 @@ export const SECOES_CONFIGURACOES = [
   { key: "permissoes", label: "Grupos e Permissões", permissao: "grupos.visualizar" },
   { key: "planos", label: "Planos", permissao: "planos.visualizar" },
   { key: "ingressos", label: "Tipos de Ingresso", permissao: "tipos_ingresso.visualizar" },
+  { key: "venda_online", label: "Venda Online", permissao: "venda_online.visualizar" },
   { key: "regras", label: "Regras de Acesso", permissao: "regras_acesso.visualizar" },
   { key: "catracas", label: "Catracas", permissao: "catracas.visualizar" },
 ] as const;

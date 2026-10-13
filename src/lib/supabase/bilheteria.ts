@@ -13,6 +13,7 @@ function mapTipo(row: Row): TipoIngresso {
     validade: (row.validade as string) ?? "1 dia",
     regraReentrada: ((row.regra_reentrada as RegraReentrada) ?? "unica"),
     semExpiracao: (row.sem_expiracao as boolean) ?? false,
+    disponivelOnline: (row.disponivel_online as boolean) ?? false,
     ativo: (row.ativo as boolean) ?? true,
   };
 }

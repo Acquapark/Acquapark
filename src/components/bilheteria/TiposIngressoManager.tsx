@@ -103,7 +103,14 @@ export function TiposIngressoManager({ tipos, title }: { tipos: TipoIngresso[]; 
               <Td>{t.semExpiracao ? "Sem expiração" : t.validade}</Td>
               <Td>{t.semExpiracao ? "Sempre liberado" : REGRA_REENTRADA_LABEL[t.regraReentrada]}</Td>
               <Td>
-                <Badge tone={t.ativo ? "success" : "neutral"}>{t.ativo ? "Ativo" : "Inativo"}</Badge>
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge tone={t.ativo ? "success" : "neutral"}>{t.ativo ? "Ativo" : "Inativo"}</Badge>
+                  {t.disponivelOnline && (
+                    <Badge tone="info" dot={false}>
+                      Online
+                    </Badge>
+                  )}
+                </div>
               </Td>
               <Td>
                 {pode("tipos_ingresso.editar") && (

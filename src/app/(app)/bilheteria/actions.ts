@@ -5,6 +5,8 @@ import { createClient } from "@/lib/supabase/server";
 import { RegraReentrada, TipoDescontoCupom } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import { hojeBR } from "@/lib/datas-br";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { enviarEmailDoPedido } from "@/lib/venda-online/servidor";
 
 export interface TipoIngressoInput {
   nome: string;
@@ -13,6 +15,7 @@ export interface TipoIngressoInput {
   validade: string;
   regraReentrada: RegraReentrada;
   semExpiracao: boolean;
+  disponivelOnline: boolean;
   ativo: boolean;
 }
 
@@ -41,6 +44,7 @@ export async function createTipoIngresso(input: TipoIngressoInput) {
     validade: input.semExpiracao ? "Sem expiração" : input.validade.trim() || "1 dia",
     regra_reentrada: input.semExpiracao ? "ilimitado" : input.regraReentrada,
     sem_expiracao: input.semExpiracao,
+    disponivel_online: input.disponivelOnline,
     ativo: input.ativo,
   });
   if (error) return { error: error.message };
@@ -64,6 +68,7 @@ export async function updateTipoIngresso(id: string, input: TipoIngressoInput) {
       validade: input.semExpiracao ? "Sem expiração" : input.validade.trim() || "1 dia",
       regra_reentrada: input.semExpiracao ? "ilimitado" : input.regraReentrada,
       sem_expiracao: input.semExpiracao,
+      disponivel_online: input.disponivelOnline,
       ativo: input.ativo,
     })
     .eq("id", id);
@@ -506,4 +511,15 @@ export async function venderIngressos(params: {
       semExpiracao: l.sem_expiracao,
     })),
   };
+}
+
+/** Reenvia o e-mail com o link dos ingressos de um pedido online pago. */
+export async function reenviarEmailPedidoOnline(pedidoId: string): Promise<{ error: string } | { success: true }> {
+  const negado = await exigirPermissao("ingressos.criar");
+  if (negado) return { error: negado.error };
+  // Service role: a equipe só lê `pedidos_online`; a data do envio é gravada pelo servidor.
+  const envio = await enviarEmailDoPedido(createAdminClient(), pedidoId);
+  if ("error" in envio) return { error: envio.error };
+  revalidate();
+  return { success: true };
 }

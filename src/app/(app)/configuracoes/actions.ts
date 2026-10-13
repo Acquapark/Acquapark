@@ -110,3 +110,35 @@ export async function publicarTermos(conteudo: string) {
   revalidatePath("/configuracoes");
   return { success: true };
 }
+
+/** Configuração da venda de ingressos pela internet (/comprar). */
+export async function salvarConfigVendaOnline(input: {
+  ativa: boolean;
+  limiteDiario: number | null;
+  horaLimite: string;
+  diasAntecedencia: number;
+}) {
+  const negado = await exigirPermissao("venda_online.editar");
+  if (negado) return { error: negado.error };
+  if (input.limiteDiario !== null && (!Number.isInteger(input.limiteDiario) || input.limiteDiario < 1)) {
+    return { error: "O limite por dia precisa ser um número inteiro maior que zero (ou deixe em branco para sem limite)." };
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(input.horaLimite)) return { error: "Informe o horário limite no formato HH:MM." };
+  if (!Number.isInteger(input.diasAntecedencia) || input.diasAntecedencia < 0 || input.diasAntecedencia > 365) {
+    return { error: "Os dias de antecedência devem estar entre 0 e 365." };
+  }
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("empresa")
+    .update({
+      venda_online_ativa: input.ativa,
+      venda_online_limite_diario: input.limiteDiario,
+      venda_online_hora_limite: input.horaLimite,
+      venda_online_dias_antecedencia: input.diasAntecedencia,
+    })
+    .eq("id", true);
+  if (error) return { error: error.message };
+  revalidatePath("/configuracoes");
+  return { success: true };
+}

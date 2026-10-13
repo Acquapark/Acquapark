@@ -8,6 +8,7 @@ import { getGrupos, getUsuariosEquipe } from "@/lib/supabase/usuarios-grupos";
 import { temAlgumaPermissao, temPermissao } from "@/lib/permissoes";
 import { getContratoAutomatico, getVersoesTermos } from "@/lib/termos";
 import { getTipoCortesiaId } from "@/lib/cortesia";
+import { getConfigVendaOnline } from "@/lib/venda-online/servidor";
 import { ConfiguracoesClient } from "./ConfiguracoesClient";
 
 export default async function ConfiguracoesPage() {
@@ -16,7 +17,8 @@ export default async function ConfiguracoesPage() {
 
   // Só busca o que a pessoa pode ver (o formulário de usuário também precisa da lista de grupos).
   const verUsuarios = temPermissao(acesso, "usuarios.visualizar");
-  const [empresa, planos, tiposIngresso, catracas, usuarios, grupos, contratoAutomatico, versoesTermos, cortesiaTipoId] = await Promise.all([
+  const [empresa, planos, tiposIngresso, catracas, usuarios, grupos, contratoAutomatico, versoesTermos, cortesiaTipoId, vendaOnline] =
+    await Promise.all([
     getEmpresa(supabase),
     getPlanosTodos(supabase),
     getTiposIngresso(supabase),
@@ -26,6 +28,7 @@ export default async function ConfiguracoesPage() {
     getContratoAutomatico(supabase),
     temPermissao(acesso, "termos.visualizar") ? getVersoesTermos(supabase) : Promise.resolve([]),
     getTipoCortesiaId(supabase),
+    getConfigVendaOnline(supabase),
   ]);
 
   return (
@@ -39,6 +42,7 @@ export default async function ConfiguracoesPage() {
       contratoAutomatico={contratoAutomatico}
       versoesTermos={versoesTermos}
       cortesiaTipoId={cortesiaTipoId}
+      vendaOnline={vendaOnline}
     />
   );
 }

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCupons, getIngressos, getTiposIngresso } from "@/lib/supabase/bilheteria";
 import { getCaixaAberto } from "@/lib/supabase/caixa";
 import { hojeBR } from "@/lib/datas-br";
+import { getPedidosOnline } from "@/lib/venda-online/servidor";
 import { BilheteriaClient } from "./BilheteriaClient";
 
 const DATA_VALIDA = /^\d{4}-\d{2}-\d{2}$/;
@@ -20,11 +21,13 @@ export default async function BilheteriaPage({ searchParams }: { searchParams: P
   const { data: claimsData } = await supabase.auth.getClaims();
   const userId = (claimsData?.claims?.sub as string | undefined) ?? null;
 
-  const [ingressos, tipos, cupons, caixaAberto] = await Promise.all([
+  const [ingressos, tipos, cupons, caixaAberto, pedidosOnline] = await Promise.all([
     getIngressos(supabase, { de, ate }),
     getTiposIngresso(supabase),
     getCupons(supabase),
     userId ? getCaixaAberto(supabase, userId) : Promise.resolve(null),
+    // Antes de rodar supabase/venda_online.sql a tabela não existe: a aba só fica vazia.
+    getPedidosOnline(supabase).catch(() => []),
   ]);
 
   return (
@@ -32,6 +35,7 @@ export default async function BilheteriaPage({ searchParams }: { searchParams: P
       ingressos={ingressos}
       tipos={tipos}
       cupons={cupons}
+      pedidosOnline={pedidosOnline}
       periodo={{ de, ate }}
       caixa={caixaAberto ? { numero: caixaAberto.numero, operadorNome: caixaAberto.operadorNome } : null}
     />

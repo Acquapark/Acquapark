@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ativarAssociadoSeParcela1Paga } from "@/lib/supabase/associados";
+import { confirmarPedidoOnlinePorCobranca } from "@/lib/venda-online/servidor";
 
 /**
  * Fluxo da seção 10 do PRD: gateway confirma → webhook → localiza a
@@ -129,7 +130,12 @@ export async function processarEventoAsaas(evento: string, payment: { id: string
     await registrarStatusAsaas(payment.id, payment.status);
   }
 
-  if (EVENTOS_PAGO.has(evento)) return processarConfirmacaoPagamento({ chargeId: payment.id, formaPagamento });
+  if (EVENTOS_PAGO.has(evento)) {
+    // Cobrança da venda online de ingressos? Emite os ingressos do pedido.
+    const pedido = await confirmarPedidoOnlinePorCobranca(payment.id, formaPagamento);
+    if (pedido) return pedido;
+    return processarConfirmacaoPagamento({ chargeId: payment.id, formaPagamento });
+  }
   if (EVENTOS_CANCELADO.has(evento)) return reverterPagamento(payment.id);
   if (evento === "PAYMENT_OVERDUE") return { success: true, vencida: true };
   return { success: true, ignorado: true };

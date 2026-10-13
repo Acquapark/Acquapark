@@ -30,6 +30,7 @@ export function TipoIngressoModal({
   const [validade, setValidade] = useState(tipo?.validade ?? "1 dia");
   const [regraReentrada, setRegraReentrada] = useState<RegraReentrada>(tipo?.regraReentrada ?? "unica");
   const [semExpiracao, setSemExpiracao] = useState(tipo?.semExpiracao ?? false);
+  const [disponivelOnline, setDisponivelOnline] = useState(tipo?.disponivelOnline ?? false);
   const [ativo, setAtivo] = useState(tipo?.ativo ?? true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -44,6 +45,7 @@ export function TipoIngressoModal({
       validade,
       regraReentrada,
       semExpiracao,
+      disponivelOnline,
       ativo,
     };
     const result = tipo ? await updateTipoIngresso(tipo.id, input) : await createTipoIngresso(input);
@@ -96,6 +98,20 @@ export function TipoIngressoModal({
               <span className="block text-[11px] text-gray-500">
                 O ingresso nunca vence e a catraca libera todas as vezes que for lido, sem data de utilização. Só deixa de
                 funcionar se for cancelado ou excluído.
+              </span>
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-start gap-2 rounded-[6px] border border-gray-200 bg-gray-50 px-3 py-2.5">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={disponivelOnline}
+              onChange={(e) => setDisponivelOnline(e.target.checked)}
+            />
+            <span>
+              <span className="block text-sm font-medium text-gray-800">Disponível para venda online</span>
+              <span className="block text-[11px] text-gray-500">
+                Aparece na página de compra pela internet (/comprar), pelo mesmo valor da bilheteria.
               </span>
             </span>
           </label>

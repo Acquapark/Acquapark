@@ -1,4 +1,4 @@
-import { BoletoCharge, CardCheckout, CobrancaResumo, Pagador, PaymentGateway, PixCharge, TipoCobranca } from "./types";
+import { BoletoCharge, CardCheckout, CobrancaAvulsa, CobrancaResumo, Pagador, PaymentGateway, PixCharge, TipoCobranca } from "./types";
 
 function randomId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
@@ -101,6 +101,15 @@ export class MockGateway implements PaymentGateway {
   }
 
   async desfazerRecebimentoManual(): Promise<void> {}
+
+  async criarCobrancaAvulsa(params: { referencia: string; tipo: "Pix" | "Cartão"; valor: number }): Promise<CobrancaAvulsa> {
+    const chargeId = randomId(params.tipo === "Pix" ? "pix" : "card");
+    const copiaECola =
+      params.tipo === "Pix"
+        ? `00020126580014BR.GOV.BCB.PIX0136${chargeId}5204000053039865406${params.valor.toFixed(2)}5802BR5913AQUA PARK6009SAO PAULO62070503***6304ABCD`
+        : null;
+    return { chargeId, copiaECola, checkoutUrl: `https://mock-gateway.local/faturas/${chargeId}` };
+  }
 }
 
 export const paymentGateway: PaymentGateway = new MockGateway();

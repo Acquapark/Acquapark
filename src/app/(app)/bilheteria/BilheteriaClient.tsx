@@ -19,6 +19,8 @@ import { CupomManager } from "@/components/bilheteria/CupomManager";
 import { VendaModal } from "@/components/bilheteria/VendaModal";
 import { IngressoQrModal } from "@/components/bilheteria/IngressoQrModal";
 import { IngressosLoteModal } from "@/components/bilheteria/IngressosLoteModal";
+import { VendasOnlineTab } from "@/components/bilheteria/VendasOnlineTab";
+import type { PedidoOnline } from "@/lib/venda-online/servidor";
 import { getAutoPrint, imprimirIngresso, imprimirIngressos } from "@/lib/print-ingresso";
 import { cancelarIngresso, excluirIngresso, reativarIngresso } from "./actions";
 
@@ -32,12 +34,14 @@ export function BilheteriaClient({
   ingressos,
   tipos,
   cupons,
+  pedidosOnline,
   periodo,
   caixa,
 }: {
   ingressos: Ingresso[];
   tipos: TipoIngresso[];
   cupons: CupomDesconto[];
+  pedidosOnline: PedidoOnline[];
   periodo: { de: string; ate: string };
   caixa: { numero: string; operadorNome: string } | null;
 }) {
@@ -45,7 +49,7 @@ export function BilheteriaClient({
   const router = useRouter();
   const [, startTransition] = useTransition();
   const { pode } = useAcesso();
-  const [tab, setTab] = useState<"ingressos" | "tipos" | "cupons">("ingressos");
+  const [tab, setTab] = useState<"ingressos" | "online" | "tipos" | "cupons">("ingressos");
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
   const [de, setDe] = useState(periodo.de);
@@ -188,11 +192,12 @@ export function BilheteriaClient({
           <Tabs
             tabs={[
               { key: "ingressos", label: "Ingressos" },
+              { key: "online", label: "Vendas online" },
               ...(pode("tipos_ingresso.visualizar") ? [{ key: "tipos", label: "Tipos de Ingresso" }] : []),
               ...(pode("cupons_desconto.visualizar") ? [{ key: "cupons", label: "Cupons de Desconto" }] : []),
             ]}
             active={tab}
-            onChange={(k) => setTab(k as "ingressos" | "tipos" | "cupons")}
+            onChange={(k) => setTab(k as "ingressos" | "online" | "tipos" | "cupons")}
           />
         </div>
 
@@ -394,6 +399,8 @@ export function BilheteriaClient({
               </Tbody>
             </Table>
           </>
+        ) : tab === "online" ? (
+          <VendasOnlineTab pedidos={pedidosOnline} />
         ) : tab === "tipos" ? (
           <div className="p-4">
             <TiposIngressoManager tipos={tipos} />

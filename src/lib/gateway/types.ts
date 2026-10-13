@@ -15,6 +15,21 @@ export interface Pagador {
   telefone?: string;
 }
 
+/** Comprador sem cadastro (venda online de ingressos): o cliente no gateway é achado/criado pelo CPF. */
+export interface CompradorAvulso {
+  nome: string;
+  cpf: string;
+  email: string;
+  telefone: string;
+}
+
+/** Cobrança avulsa (venda online): Pix traz o copia-e-cola; cartão usa a página de pagamento do gateway. */
+export interface CobrancaAvulsa {
+  chargeId: string;
+  copiaECola: string | null;
+  checkoutUrl: string;
+}
+
 export interface PixCharge {
   chargeId: string;
   /** Payload copia-e-cola — o QR Code é renderizado no cliente a partir deste valor. */
@@ -101,4 +116,12 @@ export interface PaymentGateway {
   informarRecebimentoManual(chargeId: string, params: { valor: number; data: string }): Promise<void>;
   /** Desfaz o `informarRecebimentoManual`: a cobrança volta a ficar em aberto no gateway. */
   desfazerRecebimentoManual(chargeId: string): Promise<void>;
+  /** Cobrança avulsa, sem associado (venda online). `referencia` vai como externalReference. */
+  criarCobrancaAvulsa(params: {
+    referencia: string;
+    tipo: "Pix" | "Cartão";
+    valor: number;
+    descricao: string;
+    comprador: CompradorAvulso;
+  }): Promise<CobrancaAvulsa>;
 }

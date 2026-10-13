@@ -11,6 +11,8 @@ import { TiposIngressoSection } from "./sections/TiposIngressoSection";
 import { RegrasAcessoSection } from "./sections/RegrasAcessoSection";
 import { CatracasSection } from "./sections/CatracasSection";
 import { TermosSection, VersaoTermosLista } from "./sections/TermosSection";
+import { VendaOnlineSection } from "./sections/VendaOnlineSection";
+import type { ConfigVendaOnline } from "@/lib/venda-online/servidor";
 import { Empresa } from "@/lib/contracts/variables";
 import { Catraca, Plano, TipoIngresso } from "@/types";
 import { GrupoAcesso, UsuarioEquipe } from "@/lib/supabase/usuarios-grupos";
@@ -27,6 +29,7 @@ export function ConfiguracoesClient({
   contratoAutomatico,
   versoesTermos,
   cortesiaTipoId,
+  vendaOnline,
 }: {
   empresa: Empresa;
   planos: Plano[];
@@ -37,6 +40,7 @@ export function ConfiguracoesClient({
   contratoAutomatico: boolean;
   versoesTermos: VersaoTermosLista[];
   cortesiaTipoId: string | null;
+  vendaOnline: ConfigVendaOnline;
 }) {
   const { pode } = useAcesso();
   const searchParams = useSearchParams();
@@ -52,6 +56,7 @@ export function ConfiguracoesClient({
       <Card className="p-5">
         {section === "parque" && <DadosParqueSection empresa={empresa} contratoAutomatico={contratoAutomatico} />}
         {section === "termos" && <TermosSection versoes={versoesTermos} />}
+        {section === "venda_online" && <VendaOnlineSection config={vendaOnline} />}
         {section === "usuarios" && <UsuariosSection usuarios={usuarios} grupos={grupos} />}
         {section === "permissoes" && <GruposSection grupos={grupos} />}
         {section === "planos" && <PlanosSection planos={planos} />}

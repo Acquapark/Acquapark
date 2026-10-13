@@ -39,6 +39,9 @@ export async function proxy(request: NextRequest) {
   // valida tudo no servidor, sem depender de sessão.
   if (pathname === "/cadastro" || pathname.startsWith("/cadastro/")) return response;
 
+  // Venda online de ingressos: página pública, idem.
+  if (pathname === "/comprar" || pathname.startsWith("/comprar/")) return response;
+
   // Rotas da ponte da catraca: autenticadas pela chave x-api-key na própria
   // rota, sem sessão. Sem isto, o GET da lista de rostos ia parar no /login.
   if (pathname.startsWith("/api/catraca/")) return response;

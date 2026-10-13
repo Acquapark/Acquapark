@@ -1,7 +1,17 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { hojeBR } from "@/lib/datas-br";
-import { BoletoCharge, CardCheckout, CobrancaResumo, Pagador, PaymentGateway, PixCharge, TipoCobranca } from "./types";
+import {
+  BoletoCharge,
+  CardCheckout,
+  CobrancaAvulsa,
+  CobrancaResumo,
+  CompradorAvulso,
+  Pagador,
+  PaymentGateway,
+  PixCharge,
+  TipoCobranca,
+} from "./types";
 
 /**
  * Integração real com o Asaas (https://docs.asaas.com). API key em
@@ -102,6 +112,28 @@ async function obterOuCriarCliente(pagador: Pagador, apiKey: string): Promise<st
   });
 
   await admin.from("associados").update({ asaas_customer_id: cliente.id, asaas_customer_env: env }).eq("id", pagador.associadoId);
+  return cliente.id;
+}
+
+/**
+ * Comprador da venda online (não é associado): reaproveita o cliente da Asaas
+ * com o mesmo CPF, se existir, em vez de criar um novo a cada compra.
+ */
+async function obterOuCriarClienteAvulso(comprador: CompradorAvulso): Promise<string> {
+  const cpf = apenasDigitos(comprador.cpf);
+  const busca = await asaasFetch<{ data: { id: string }[] }>(`/customers?cpfCnpj=${cpf}&limit=1`);
+  if (busca.data?.[0]?.id) return busca.data[0].id;
+
+  const cliente = await asaasFetch<{ id: string }>("/customers", {
+    method: "POST",
+    body: JSON.stringify({
+      name: comprador.nome,
+      cpfCnpj: cpf,
+      email: comprador.email,
+      mobilePhone: apenasDigitos(comprador.telefone),
+      notificationDisabled: true,
+    }),
+  });
   return cliente.id;
 }
 
@@ -308,6 +340,33 @@ export class AsaasGateway implements PaymentGateway {
       method: "POST",
       body: JSON.stringify({ paymentDate: params.data, value: params.valor, notifyCustomer: false }),
     });
+  }
+
+  async criarCobrancaAvulsa(params: {
+    referencia: string;
+    tipo: "Pix" | "Cartão";
+    valor: number;
+    descricao: string;
+    comprador: CompradorAvulso;
+  }): Promise<CobrancaAvulsa> {
+    const customerId = await obterOuCriarClienteAvulso(params.comprador);
+    const payment = await asaasFetch<AsaasPayment>("/payments", {
+      method: "POST",
+      body: JSON.stringify({
+        customer: customerId,
+        billingType: params.tipo === "Pix" ? "PIX" : "CREDIT_CARD",
+        value: params.valor,
+        dueDate: hojeBR(),
+        description: params.descricao,
+        externalReference: params.referencia,
+      }),
+    });
+    if (params.tipo === "Pix") {
+      const qrCode = await asaasFetch<{ payload: string }>(`/payments/${payment.id}/pixQrCode`);
+      return { chargeId: payment.id, copiaECola: qrCode.payload, checkoutUrl: payment.invoiceUrl };
+    }
+    // Cartão: página de pagamento da Asaas — o número do cartão nunca passa pelos nossos servidores.
+    return { chargeId: payment.id, copiaECola: null, checkoutUrl: payment.invoiceUrl };
   }
 
   async desfazerRecebimentoManual(chargeId: string): Promise<void> {

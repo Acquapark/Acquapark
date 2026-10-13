@@ -22,6 +22,7 @@ import {
   ChevronDown,
   Banknote,
   ScrollText,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
@@ -45,6 +46,7 @@ const CONFIG_ICONS = {
   permissoes: KeyRound,
   planos: CreditCard,
   ingressos: Ticket,
+  venda_online: Globe,
   regras: ShieldCheck,
   catracas: DoorClosed,
 } as const;
