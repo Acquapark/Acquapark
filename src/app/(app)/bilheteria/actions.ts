@@ -377,6 +377,53 @@ export interface IngressoVendidoDoTipo extends IngressoVendido {
   tipoId: string;
 }
 
+type LinhaIngressoRpc = {
+  id: string;
+  numero: string;
+  codigo: string;
+  tipo_id: string;
+  valor: number;
+  valor_desconto: number;
+  data_utilizacao: string;
+  sem_expiracao: boolean;
+};
+
+/** Venda paga com mais de uma forma: tudo numa transação (supabase/venda_pagamento_dividido.sql). */
+async function venderComPagamentoDividido(
+  itens: { tipoId: string; quantidade: number }[],
+  params: { comprador: string; dataUtilizacao: string; cupomCodigo?: string; pagamentos: { forma: string; valor: number }[] },
+): Promise<{ error: string } | { ingressos: IngressoVendidoDoTipo[] }> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("vender_ingressos_pagamento_dividido", {
+    p_itens: itens.map((i) => ({ tipo_id: i.tipoId, quantidade: i.quantidade })),
+    p_comprador: params.comprador.trim() || null,
+    p_data_utilizacao: params.dataUtilizacao,
+    p_pagamentos: params.pagamentos.map((p) => ({ forma: p.forma, valor: Math.round(p.valor * 100) / 100 })),
+    p_cupom_codigo: params.cupomCodigo?.trim() || null,
+  });
+  if (error || !Array.isArray(data) || data.length === 0) {
+    if (error?.code === "PGRST202") {
+      return { error: "O pagamento dividido ainda não foi ativado no banco (rode supabase/venda_pagamento_dividido.sql)." };
+    }
+    return { error: error?.message ?? "Não foi possível emitir os ingressos." };
+  }
+
+  revalidate();
+  revalidatePath("/caixa");
+  return {
+    ingressos: (data as LinhaIngressoRpc[]).map((l) => ({
+      id: l.id,
+      numero: l.numero,
+      codigo: l.codigo,
+      tipoId: l.tipo_id,
+      valor: Number(l.valor),
+      valorDesconto: Number(l.valor_desconto),
+      dataUtilizacao: l.data_utilizacao,
+      semExpiracao: l.sem_expiracao,
+    })),
+  };
+}
+
 /**
  * Venda com um ou mais tipos de ingresso (Ctrl + clique na Bilheteria). Um tipo
  * só usa a mesma função de sempre; vários tipos usam `vender_ingressos_varios`,
@@ -389,6 +436,8 @@ export async function venderIngressos(params: {
   dataUtilizacao: string;
   formaPagamento: string;
   cupomCodigo?: string;
+  /** Pagamento dividido (2+ formas). Quando informado, `formaPagamento` é ignorada. */
+  pagamentos?: { forma: string; valor: number }[];
 }): Promise<{ error: string } | { ingressos: IngressoVendidoDoTipo[] }> {
   const negado = await exigirPermissao("ingressos.criar");
   if (negado) return { error: negado.error };
@@ -400,6 +449,16 @@ export async function venderIngressos(params: {
   const total = itens.reduce((s, i) => s + i.quantidade, 0);
   if (total < 1 || total > 50) return { error: "A venda deve ter entre 1 e 50 ingressos no total." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(params.dataUtilizacao)) return { error: "Informe a data de utilização." };
+
+  if ((params.pagamentos?.length ?? 0) >= 2) {
+    const partes = params.pagamentos!;
+    if (partes.some((p) => !FORMAS_PAGAMENTO.includes(p.forma))) return { error: "Selecione a forma de cada parte do pagamento." };
+    if (new Set(partes.map((p) => p.forma)).size !== partes.length) return { error: "Cada forma de pagamento só pode aparecer uma vez." };
+    if (partes.some((p) => !Number.isFinite(p.valor) || p.valor <= 0)) {
+      return { error: "Cada parte do pagamento precisa de um valor maior que zero." };
+    }
+    return venderComPagamentoDividido(itens, { ...params, pagamentos: partes });
+  }
   if (!FORMAS_PAGAMENTO.includes(params.formaPagamento)) return { error: "Selecione a forma de pagamento." };
 
   if (itens.length === 1) {

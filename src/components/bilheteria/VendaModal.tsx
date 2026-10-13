@@ -6,7 +6,7 @@ import { Infinity as InfinityIcon, Minus, Plus, Tag, X } from "lucide-react";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { Label, Input, Select } from "@/components/ui/Field";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, parseMoney } from "@/lib/utils";
 import { Ingresso, TipoIngresso } from "@/types";
 import { validarCupom, venderIngressos } from "@/app/(app)/bilheteria/actions";
 import {
@@ -53,6 +53,12 @@ export function VendaModal({
   const [comprador, setComprador] = useState("");
   const [dataUtilizacao, setDataUtilizacao] = useState(hojeBR());
   const [forma, setForma] = useState("");
+  // Pagamento dividido: a última parte completa sozinha o que falta do total.
+  const [dividir, setDividir] = useState(false);
+  const [partes, setPartes] = useState<{ forma: string; valor: string }[]>([
+    { forma: "", valor: "" },
+    { forma: "", valor: "" },
+  ]);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [autoPrint, setAutoPrint] = useState(true);
@@ -131,8 +137,9 @@ export function VendaModal({
       itens: selecionados.map((i) => ({ tipoId: i.tipoId, quantidade: i.quantidade })),
       comprador,
       dataUtilizacao,
-      formaPagamento: forma,
+      formaPagamento: dividir ? (partesFinais[0]?.forma ?? "") : forma,
       cupomCodigo: cupomAplicado?.codigo,
+      pagamentos: dividir ? partesFinais : undefined,
     });
     setSaving(false);
     if ("error" in result) {
@@ -151,7 +158,7 @@ export function VendaModal({
         semExpiracao: i.semExpiracao,
         valor: i.valor,
         status: "Disponível",
-        formaPagamento: forma,
+        formaPagamento: dividir ? partesFinais.map((p) => p.forma).join(" + ") : forma,
         cupomCodigo: cupomAplicado?.codigo,
         valorDesconto: i.valorDesconto || undefined,
       })),
@@ -163,6 +170,27 @@ export function VendaModal({
     cupomAplicado?.porTipo[item.tipoId]?.valorFinal ?? item.tipo.valor;
   const totalFinal = selecionados.reduce((s, i) => s + valorUnitario(i) * i.quantidade, 0);
   const totalSemDesconto = selecionados.reduce((s, i) => s + i.tipo.valor * i.quantidade, 0);
+
+  const centavos = (v: number) => Math.round(v * 100) / 100;
+  const ultima = partes.length - 1;
+  const somaOutras = centavos(partes.slice(0, ultima).reduce((s, p) => s + (parseMoney(p.valor) || 0), 0));
+  const restante = centavos(totalFinal - somaOutras);
+  const partesFinais = partes.map((p, i) => ({ forma: p.forma, valor: i === ultima ? restante : centavos(parseMoney(p.valor)) }));
+  const erroDivisao = !dividir
+    ? null
+    : partes.some((p) => !p.forma)
+      ? "Escolha a forma de cada parte do pagamento."
+      : new Set(partes.map((p) => p.forma)).size !== partes.length
+        ? "Cada forma de pagamento só pode aparecer uma vez."
+        : partesFinais.slice(0, ultima).some((p) => !Number.isFinite(p.valor) || p.valor <= 0)
+          ? "Informe o valor de cada parte."
+          : restante <= 0
+            ? `Os valores passam do total da venda (${formatCurrency(totalFinal)}).`
+            : null;
+
+  function alterarParte(indice: number, patch: Partial<{ forma: string; valor: string }>) {
+    setPartes((atual) => atual.map((p, i) => (i === indice ? { ...p, ...patch } : p)));
+  }
 
   return (
     <Modal open={open} onClose={onClose} size="md">
@@ -266,16 +294,107 @@ export function VendaModal({
               </div>
               <div>
                 <Label required>Forma de pagamento</Label>
-                <Select value={forma} onChange={(e) => setForma(e.target.value)}>
-                  <option value="">Selecione</option>
-                  {FORMAS_PAGAMENTO.map((f) => (
-                    <option key={f} value={f}>
-                      {f}
-                    </option>
-                  ))}
-                </Select>
+                {dividir ? (
+                  <div className="flex h-9 items-center justify-between rounded-[4px] border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
+                    Dividido
+                    <button type="button" onClick={() => setDividir(false)} className="text-xs font-medium text-primary-600">
+                      Usar uma forma
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <Select value={forma} onChange={(e) => setForma(e.target.value)}>
+                      <option value="">Selecione</option>
+                      {FORMAS_PAGAMENTO.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </Select>
+                    {totalFinal > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDividir(true);
+                          setPartes([
+                            { forma, valor: "" },
+                            { forma: "", valor: "" },
+                          ]);
+                        }}
+                        className="mt-1 text-xs font-medium text-primary-600"
+                      >
+                        Dividir pagamento
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             </div>
+
+            {dividir && (
+              <div className="rounded-[6px] border border-gray-200 p-3">
+                <p className="mb-2 text-xs font-medium text-gray-600">Pagamento dividido · total {formatCurrency(totalFinal)}</p>
+                <div className="space-y-2">
+                  {partes.map((parte, i) => (
+                    <div key={i} className="flex items-center gap-2">
+                      <Select value={parte.forma} onChange={(e) => alterarParte(i, { forma: e.target.value })} className="flex-1">
+                        <option value="">Forma</option>
+                        {FORMAS_PAGAMENTO.map((f) => (
+                          <option key={f} value={f}>
+                            {f}
+                          </option>
+                        ))}
+                      </Select>
+                      {i === ultima ? (
+                        <div
+                          className={cn(
+                            "flex h-9 w-32 items-center rounded-[4px] border px-3 text-sm",
+                            restante > 0 ? "border-gray-200 bg-gray-50 text-gray-700" : "border-danger-600/40 bg-danger-50 text-danger-700",
+                          )}
+                          title="A última forma completa o que falta do total"
+                        >
+                          {formatCurrency(restante)}
+                        </div>
+                      ) : (
+                        <Input
+                          value={parte.valor}
+                          onChange={(e) => alterarParte(i, { valor: e.target.value })}
+                          placeholder="0,00"
+                          inputMode="decimal"
+                          className="w-32"
+                          aria-label={`Valor da parte ${i + 1}`}
+                        />
+                      )}
+                      {partes.length > 2 && (
+                        <button
+                          type="button"
+                          onClick={() => setPartes((atual) => atual.filter((_, j) => j !== i))}
+                          className="p-1.5 text-gray-400 hover:text-danger-600"
+                          aria-label="Remover esta forma"
+                        >
+                          <X size={14} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 flex items-center justify-between">
+                  {partes.length < FORMAS_PAGAMENTO.length ? (
+                    <button
+                      type="button"
+                      onClick={() => setPartes((atual) => [...atual, { forma: "", valor: "" }])}
+                      className="text-xs font-medium text-primary-600"
+                    >
+                      + Adicionar forma
+                    </button>
+                  ) : (
+                    <span />
+                  )}
+                  <span className="text-[11px] text-gray-400">A última forma completa o total.</span>
+                </div>
+                {erroDivisao && <p className="mt-2 text-xs text-danger-600">{erroDivisao}</p>}
+              </div>
+            )}
 
             <div>
               <Label>Cupom de desconto</Label>
@@ -372,7 +491,7 @@ export function VendaModal({
           Cancelar
         </Button>
         {tiposAtivos.length > 0 && (
-          <Button onClick={handleConfirmar} disabled={saving}>
+          <Button onClick={handleConfirmar} disabled={saving || !!erroDivisao}>
             {saving ? "Emitindo..." : quantidade > 1 ? `Confirmar recebimento e emitir ${quantidade} ingressos` : "Confirmar recebimento e emitir"}
           </Button>
         )}
