@@ -52,6 +52,7 @@ export function BilheteriaClient({
   const [tab, setTab] = useState<"ingressos" | "online" | "tipos" | "cupons">("ingressos");
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
+  const [tipoFiltro, setTipoFiltro] = useState("Todos");
   const [de, setDe] = useState(periodo.de);
   const [ate, setAte] = useState(periodo.ate);
 
@@ -89,9 +90,15 @@ export function BilheteriaClient({
   const [reativarSaving, setReativarSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Tipos cadastrados (inclusive inativos) + os que aparecem nos ingressos do período.
+  const nomesTipos = Array.from(new Set([...tipos.map((t) => t.nome), ...ingressos.map((i) => i.tipo)])).sort((a, b) =>
+    a.localeCompare(b, "pt-BR"),
+  );
+
   const termo = busca.trim().toLowerCase();
   const filtrados = ingressos.filter((i) => {
     if (statusFiltro !== "Todos" && i.status !== statusFiltro) return false;
+    if (tipoFiltro !== "Todos" && i.tipo !== tipoFiltro) return false;
     if (!termo) return true;
     return i.numero.toLowerCase().includes(termo) || i.comprador.toLowerCase().includes(termo);
   });
@@ -230,6 +237,16 @@ export function BilheteriaClient({
                   {STATUS_OPTIONS.map((s) => (
                     <option key={s} value={s}>
                       {s}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+              <div className="w-48">
+                <Select value={tipoFiltro} onChange={(e) => setTipoFiltro(e.target.value)} aria-label="Filtrar por tipo de ingresso">
+                  <option value="Todos">Todos os tipos</option>
+                  {nomesTipos.map((nome) => (
+                    <option key={nome} value={nome}>
+                      {nome}
                     </option>
                   ))}
                 </Select>
