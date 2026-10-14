@@ -109,6 +109,12 @@ export function janelaDeDatas(config: ConfigVendaOnline): { primeira: string; ul
   return { primeira: hojeAberto ? hoje : somarDias(hoje, 1), ultima: somarDias(hoje, config.diasAntecedencia), hojeAberto };
 }
 
+/** Datas (YYYY-MM-DD) em que o parque abre, dentro do intervalo — escolhidas uma a uma no painel. */
+export async function getDatasAbertas(supabase: SupabaseClient, de: string, ate: string): Promise<string[]> {
+  const { data } = await supabase.from("datas_funcionamento").select("data").gte("data", de).lte("data", ate).order("data");
+  return ((data ?? []) as Row[]).map((d) => d.data as string);
+}
+
 /** Ingressos online ainda disponíveis na data (null = sem limite). Conta pagos e reservas no prazo. */
 export async function ingressosRestantes(supabase: SupabaseClient, config: ConfigVendaOnline, data: string): Promise<number | null> {
   if (config.limiteDiario === null) return null;

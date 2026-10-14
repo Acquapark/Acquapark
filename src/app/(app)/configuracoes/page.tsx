@@ -8,7 +8,8 @@ import { getGrupos, getUsuariosEquipe } from "@/lib/supabase/usuarios-grupos";
 import { temAlgumaPermissao, temPermissao } from "@/lib/permissoes";
 import { getContratoAutomatico, getVersoesTermos } from "@/lib/termos";
 import { getTipoCortesiaId } from "@/lib/cortesia";
-import { getConfigVendaOnline } from "@/lib/venda-online/servidor";
+import { getConfigVendaOnline, getDatasAbertas } from "@/lib/venda-online/servidor";
+import { hojeBR, somarDias } from "@/lib/datas-br";
 import { ConfiguracoesClient } from "./ConfiguracoesClient";
 
 export default async function ConfiguracoesPage() {
@@ -17,7 +18,7 @@ export default async function ConfiguracoesPage() {
 
   // Só busca o que a pessoa pode ver (o formulário de usuário também precisa da lista de grupos).
   const verUsuarios = temPermissao(acesso, "usuarios.visualizar");
-  const [empresa, planos, tiposIngresso, catracas, usuarios, grupos, contratoAutomatico, versoesTermos, cortesiaTipoId, vendaOnline] =
+  const [empresa, planos, tiposIngresso, catracas, usuarios, grupos, contratoAutomatico, versoesTermos, cortesiaTipoId, vendaOnline, datasAbertas] =
     await Promise.all([
     getEmpresa(supabase),
     getPlanosTodos(supabase),
@@ -29,6 +30,8 @@ export default async function ConfiguracoesPage() {
     temPermissao(acesso, "termos.visualizar") ? getVersoesTermos(supabase) : Promise.resolve([]),
     getTipoCortesiaId(supabase),
     getConfigVendaOnline(supabase),
+    // Antes de rodar supabase/datas_funcionamento.sql a tabela não existe: o calendário só fica vazio.
+    getDatasAbertas(supabase, hojeBR(), somarDias(hojeBR(), 400)).catch(() => []),
   ]);
 
   return (
@@ -43,6 +46,7 @@ export default async function ConfiguracoesPage() {
       versoesTermos={versoesTermos}
       cortesiaTipoId={cortesiaTipoId}
       vendaOnline={vendaOnline}
+      datasAbertas={datasAbertas}
     />
   );
 }

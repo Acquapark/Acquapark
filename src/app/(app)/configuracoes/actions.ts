@@ -142,3 +142,33 @@ export async function salvarConfigVendaOnline(input: {
   revalidatePath("/configuracoes");
   return { success: true };
 }
+
+/** Abre/fecha dias de funcionamento do parque (venda online só aceita dias abertos). */
+export async function definirDatasFuncionamento(params: { abrir: string[]; fechar: string[] }) {
+  const negado = await exigirPermissao("venda_online.editar");
+  if (negado) return { error: negado.error };
+  const valida = (d: string) => /^\d{4}-\d{2}-\d{2}$/.test(d);
+  if (![...params.abrir, ...params.fechar].every(valida)) return { error: "Data inválida." };
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (params.abrir.length > 0) {
+    const { error } = await supabase
+      .from("datas_funcionamento")
+      .upsert(
+        params.abrir.map((data) => ({ data, criado_por: user?.id ?? null })),
+        { onConflict: "data", ignoreDuplicates: true },
+      );
+    if (error) return { error: error.code === "42P01" ? "Rode o script supabase/datas_funcionamento.sql no Supabase." : error.message };
+  }
+  if (params.fechar.length > 0) {
+    const { error } = await supabase.from("datas_funcionamento").delete().in("data", params.fechar);
+    if (error) return { error: error.message };
+  }
+  revalidatePath("/configuracoes");
+  revalidatePath("/comprar");
+  return { success: true };
+}

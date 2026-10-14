@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard, Minus, Plus, QrCode, Tag, Waves, X } from "lucide-react";
 import { cn, formatCPF, formatCurrency, formatDate, formatPhone, isCPFValido } from "@/lib/utils";
 import type { TipoOnline } from "@/lib/venda-online/servidor";
+import { Calendario } from "@/components/ui/Calendario";
 import { conferirCupom, consultarData, criarPedido } from "./actions";
 
 const MAX_INGRESSOS = 50;
@@ -33,9 +34,12 @@ function Campo({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
-export function CompraClient({ tipos, primeiraData, ultimaData }: { tipos: TipoOnline[]; primeiraData: string; ultimaData: string }) {
+export function CompraClient({ tipos, datasAbertas }: { tipos: TipoOnline[]; datasAbertas: string[] }) {
   const router = useRouter();
-  const [data, setData] = useState(primeiraData);
+  // Só os dias em que o parque abre podem ser escolhidos (marcados no painel).
+  const abertas = useMemo(() => new Set(datasAbertas), [datasAbertas]);
+  const [data, setData] = useState(datasAbertas[0]);
+  const [mes, setMes] = useState(datasAbertas[0].slice(0, 7));
   const [situacaoData, setSituacaoData] = useState<{ carregando: boolean; erro: string | null; restantes: number | null }>({
     carregando: true,
     erro: null,
@@ -152,23 +156,26 @@ export function CompraClient({ tipos, primeiraData, ultimaData }: { tipos: TipoO
         </div>
 
         <Secao numero={1} titulo="Data da visita">
-          <input
-            type="date"
-            className={inputClass}
-            value={data}
-            min={primeiraData}
-            max={ultimaData}
-            onChange={(e) => {
-              setData(e.target.value);
+          <Calendario
+            mes={mes}
+            onMudarMes={setMes}
+            mesMinimo={datasAbertas[0].slice(0, 7)}
+            mesMaximo={datasAbertas[datasAbertas.length - 1].slice(0, 7)}
+            tamanho="grande"
+            estadoDoDia={(dia) => (dia === data ? "marcado" : abertas.has(dia) ? "disponivel" : "desabilitado")}
+            onClicarDia={(dia) => {
+              if (dia === data) return;
+              setData(dia);
               setSituacaoData({ carregando: true, erro: null, restantes: null });
             }}
           />
+          <p className="mt-2 text-[11px] text-gray-400">Só os dias em que o parque abre podem ser escolhidos.</p>
           <p className={cn("mt-2 text-sm", situacaoData.erro ? "text-danger-600" : "text-gray-500")}>
             {situacaoData.carregando
               ? "Conferindo a data..."
               : situacaoData.erro
                 ? situacaoData.erro
-                : `${formatDate(data)}${situacaoData.restantes !== null && situacaoData.restantes <= 50 ? ` · restam ${situacaoData.restantes} ingresso(s)` : ""}`}
+                : `Visita em ${formatDate(data)}${situacaoData.restantes !== null && situacaoData.restantes <= 50 ? ` · restam ${situacaoData.restantes} ingresso(s)` : ""}`}
           </p>
         </Secao>
 

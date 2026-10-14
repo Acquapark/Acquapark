@@ -7,10 +7,15 @@ import { Button } from "@/components/ui/Button";
 import { Input, Label } from "@/components/ui/Field";
 import { cn } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
-import { salvarConfigVendaOnline } from "@/app/(app)/configuracoes/actions";
+import { definirDatasFuncionamento, salvarConfigVendaOnline } from "@/app/(app)/configuracoes/actions";
+import { Calendario, somarMeses } from "@/components/ui/Calendario";
 import type { ConfigVendaOnline } from "@/lib/venda-online/servidor";
 
-export function VendaOnlineSection({ config }: { config: ConfigVendaOnline }) {
+function hojeBR() {
+  return new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+}
+
+export function VendaOnlineSection({ config, datasAbertas }: { config: ConfigVendaOnline; datasAbertas: string[] }) {
   const router = useRouter();
   const { pode } = useAcesso();
   const podeEditar = pode("venda_online.editar");
@@ -20,6 +25,43 @@ export function VendaOnlineSection({ config }: { config: ConfigVendaOnline }) {
   const [dias, setDias] = useState(String(config.diasAntecedencia));
   const [salvando, setSalvando] = useState(false);
   const [mensagem, setMensagem] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+
+  // Dias de funcionamento: cada clique abre/fecha o dia e já salva.
+  const hoje = hojeBR();
+  const [abertas, setAbertas] = useState(() => new Set(datasAbertas));
+  const [mes, setMes] = useState(hoje.slice(0, 7));
+  const [erroDatas, setErroDatas] = useState("");
+
+  async function aplicar(abrir: string[], fechar: string[]) {
+    if (abrir.length === 0 && fechar.length === 0) return;
+    setErroDatas("");
+    const anterior = abertas;
+    const nova = new Set(abertas);
+    abrir.forEach((d) => nova.add(d));
+    fechar.forEach((d) => nova.delete(d));
+    setAbertas(nova);
+    const result = await definirDatasFuncionamento({ abrir, fechar });
+    if (result.error) {
+      setAbertas(anterior);
+      setErroDatas(result.error);
+    }
+  }
+
+  function diasDoMes(): string[] {
+    const [ano, m] = mes.split("-").map(Number);
+    const total = new Date(Date.UTC(ano, m, 0)).getUTCDate();
+    return Array.from({ length: total }, (_, i) => `${mes}-${String(i + 1).padStart(2, "0")}`).filter((d) => d >= hoje);
+  }
+
+  function abrirFinsDeSemana() {
+    const fds = diasDoMes().filter((d) => {
+      const dia = new Date(`${d}T12:00:00Z`).getUTCDay();
+      return (dia === 0 || dia === 6) && !abertas.has(d);
+    });
+    aplicar(fds, []);
+  }
+
+  const abertasNoMes = diasDoMes().filter((d) => abertas.has(d));
 
   async function salvar() {
     setSalvando(true);
@@ -95,6 +137,46 @@ export function VendaOnlineSection({ config }: { config: ConfigVendaOnline }) {
         <div>
           <Label>Vender até quantos dias à frente</Label>
           <Input type="number" min={0} max={365} value={dias} onChange={(e) => setDias(e.target.value)} disabled={!podeEditar} />
+        </div>
+      </div>
+
+      <div className="mt-6 border-t border-gray-100 pt-5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">Dias de funcionamento</p>
+        <p className="mt-1 text-xs text-gray-500">
+          A página de compra só deixa escolher os dias marcados aqui (em azul). Clique num dia para abrir ou fechar — salva na
+          hora. Sem nenhum dia marcado, não há datas à venda.
+        </p>
+        <div className="mt-3 flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="w-full max-w-xs rounded-[6px] border border-gray-200 p-3">
+            <Calendario
+              mes={mes}
+              onMudarMes={setMes}
+              mesMinimo={hoje.slice(0, 7)}
+              mesMaximo={somarMeses(hoje.slice(0, 7), 12)}
+              estadoDoDia={(d) => (d < hoje || !podeEditar ? (abertas.has(d) ? "marcado" : "desabilitado") : abertas.has(d) ? "marcado" : "disponivel")}
+              onClicarDia={(d) => {
+                if (d < hoje || !podeEditar) return;
+                if (abertas.has(d)) aplicar([], [d]);
+                else aplicar([d], []);
+              }}
+            />
+          </div>
+          <div className="space-y-2 text-sm">
+            <p className="text-gray-600">
+              <strong className="text-gray-900">{abertasNoMes.length}</strong> dia(s) aberto(s) neste mês
+            </p>
+            {podeEditar && (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={abrirFinsDeSemana}>
+                  Abrir fins de semana do mês
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => aplicar([], abertasNoMes)} disabled={abertasNoMes.length === 0}>
+                  Limpar mês
+                </Button>
+              </div>
+            )}
+            {erroDatas && <p className="text-xs text-danger-600">{erroDatas}</p>}
+          </div>
         </div>
       </div>
 

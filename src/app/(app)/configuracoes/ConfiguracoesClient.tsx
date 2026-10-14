@@ -30,6 +30,7 @@ export function ConfiguracoesClient({
   versoesTermos,
   cortesiaTipoId,
   vendaOnline,
+  datasAbertas,
 }: {
   empresa: Empresa;
   planos: Plano[];
@@ -41,6 +42,7 @@ export function ConfiguracoesClient({
   versoesTermos: VersaoTermosLista[];
   cortesiaTipoId: string | null;
   vendaOnline: ConfigVendaOnline;
+  datasAbertas: string[];
 }) {
   const { pode } = useAcesso();
   const searchParams = useSearchParams();
@@ -56,7 +58,7 @@ export function ConfiguracoesClient({
       <Card className="p-5">
         {section === "parque" && <DadosParqueSection empresa={empresa} contratoAutomatico={contratoAutomatico} />}
         {section === "termos" && <TermosSection versoes={versoesTermos} />}
-        {section === "venda_online" && <VendaOnlineSection config={vendaOnline} />}
+        {section === "venda_online" && <VendaOnlineSection config={vendaOnline} datasAbertas={datasAbertas} />}
         {section === "usuarios" && <UsuariosSection usuarios={usuarios} grupos={grupos} />}
         {section === "permissoes" && <GruposSection grupos={grupos} />}
         {section === "planos" && <PlanosSection planos={planos} />}

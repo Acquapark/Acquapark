@@ -8,6 +8,7 @@ import { formatCPF, formatPhone, isCPFValido } from "@/lib/utils";
 import {
   confirmarPedidoOnline,
   getConfigVendaOnline,
+  getDatasAbertas,
   getPedidoPorToken,
   ingressosRestantes,
   janelaDeDatas,
@@ -38,6 +39,9 @@ export async function consultarData(
     };
   }
   if (data > janela.ultima) return { disponivel: false, motivo: `A venda online vai até ${config.diasAntecedencia} dias à frente.` };
+  if ((await getDatasAbertas(admin, data, data)).length === 0) {
+    return { disponivel: false, motivo: "O parque não abre nesta data. Escolha um dos dias disponíveis no calendário." };
+  }
 
   const restantes = await ingressosRestantes(admin, config, data);
   if (restantes === 0) return { disponivel: false, motivo: "Ingressos online esgotados para esta data." };
