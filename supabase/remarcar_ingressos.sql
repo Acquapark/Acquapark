@@ -56,7 +56,8 @@ begin
   end if;
 
   create temporary table if not exists _remarcados (pedido_online_id uuid, data_anterior date) on commit drop;
-  delete from _remarcados;
+  -- "where true": o Supabase (pg_safeupdate) recusa DELETE sem WHERE.
+  delete from _remarcados where true;
 
   for v_ingresso in
     select * from ingressos where id = any (p_ingresso_ids) order by numero for update
