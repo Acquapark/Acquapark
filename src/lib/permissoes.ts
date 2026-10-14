@@ -155,6 +155,11 @@ export const MODULOS: ModuloDef[] = [
           A.excluir,
           { chave: "reativar", rotulo: "Reativar (voltar a Disponível)" },
           { chave: "imprimir", rotulo: "Reimprimir" },
+          {
+            chave: "alterar_data",
+            rotulo: "Alterar data de utilização",
+            descricao: "Remarcar um ingresso, um pedido online ou todos os ingressos de um dia em que o parque não abriu.",
+          },
         ],
       },
       {

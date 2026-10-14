@@ -6,7 +6,7 @@ import { RegraReentrada, TipoDescontoCupom } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import { hojeBR } from "@/lib/datas-br";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { enviarEmailDoPedido } from "@/lib/venda-online/servidor";
+import { enviarEmailDoPedido, enviarEmailRemarcacao } from "@/lib/venda-online/servidor";
 
 export interface TipoIngressoInput {
   nome: string;
@@ -522,4 +522,116 @@ export async function reenviarEmailPedidoOnline(pedidoId: string): Promise<{ err
   if ("error" in envio) return { error: envio.error };
   revalidate();
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Remarcar a data de utilização (imprevistos: o parque não abriu na data)
+// ---------------------------------------------------------------------------
+
+export interface ResultadoRemarcacao {
+  quantidade: number;
+  emailsEnviados: number;
+  falhasEmail: string[];
+}
+
+const DATA_ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Chama remarcar_ingressos (tudo ou nada) e avisa por e-mail os compradores online afetados. */
+async function executarRemarcacao(
+  ingressoIds: string[],
+  novaData: string,
+  motivo: string,
+): Promise<{ error: string } | ResultadoRemarcacao> {
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("remarcar_ingressos", {
+    p_ingresso_ids: ingressoIds,
+    p_nova_data: novaData,
+    p_motivo: motivo.trim() || null,
+  });
+  if (error) {
+    if (error.code === "PGRST202") return { error: "A remarcação ainda não foi ativada no banco (rode supabase/remarcar_ingressos.sql)." };
+    return { error: error.message };
+  }
+
+  const afetados = (data ?? []) as { pedido_online_id: string | null; data_anterior: string; quantidade: number }[];
+  const admin = createAdminClient();
+  let emailsEnviados = 0;
+  const falhasEmail: string[] = [];
+  for (const p of afetados) {
+    if (!p.pedido_online_id) continue;
+    const envio = await enviarEmailRemarcacao(admin, {
+      pedidoId: p.pedido_online_id,
+      dataAnterior: p.data_anterior,
+      quantidade: p.quantidade,
+      motivo: motivo.trim() || undefined,
+    });
+    if ("ok" in envio) emailsEnviados++;
+    else falhasEmail.push(envio.error);
+  }
+
+  revalidate();
+  revalidatePath("/controle-acesso");
+  return { quantidade: ingressoIds.length, emailsEnviados, falhasEmail };
+}
+
+/** Remarca ingressos escolhidos (ação "Alterar data" na lista de ingressos). */
+export async function remarcarIngressos(params: { ingressoIds: string[]; novaData: string; motivo: string }) {
+  const negado = await exigirPermissao("ingressos.alterar_data");
+  if (negado) return { error: negado.error };
+  if (!DATA_ISO.test(params.novaData)) return { error: "Escolha a nova data." };
+  if (params.ingressoIds.length === 0) return { error: "Nenhum ingresso selecionado." };
+  return executarRemarcacao(params.ingressoIds, params.novaData, params.motivo);
+}
+
+/** Remarca todos os ingressos ainda disponíveis de um pedido online. */
+export async function remarcarPedidoOnline(params: { pedidoId: string; novaData: string; motivo: string }) {
+  const negado = await exigirPermissao("ingressos.alterar_data");
+  if (negado) return { error: negado.error };
+  if (!DATA_ISO.test(params.novaData)) return { error: "Escolha a nova data." };
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("ingressos")
+    .select("id")
+    .eq("pedido_online_id", params.pedidoId)
+    .eq("status", "Disponível")
+    .eq("sem_expiracao", false);
+  const ids = (data ?? []).map((i) => i.id as string);
+  if (ids.length === 0) return { error: "Este pedido não tem ingressos disponíveis para remarcar." };
+  return executarRemarcacao(ids, params.novaData, params.motivo);
+}
+
+/** Quantos ingressos ainda não usados (com data) existem para o dia — balcão e online. */
+export async function contarIngressosDoDia(data: string): Promise<{ error: string } | { quantidade: number }> {
+  const negado = await exigirPermissao("venda_online.visualizar", "ingressos.alterar_data");
+  if (negado) return { error: negado.error };
+  if (!DATA_ISO.test(data)) return { error: "Data inválida." };
+  const supabase = await createClient();
+  const { count, error } = await supabase
+    .from("ingressos")
+    .select("id", { count: "exact", head: true })
+    .eq("data_utilizacao", data)
+    .eq("status", "Disponível")
+    .eq("sem_expiracao", false);
+  if (error) return { error: error.message };
+  return { quantidade: count ?? 0 };
+}
+
+/** O parque não abriu: remarca todos os ingressos não usados do dia para outra data. */
+export async function remarcarDia(params: { dataAnterior: string; novaData: string; motivo: string }) {
+  const negado = await exigirPermissao("ingressos.alterar_data");
+  if (negado) return { error: negado.error };
+  if (!DATA_ISO.test(params.dataAnterior) || !DATA_ISO.test(params.novaData)) return { error: "Escolha a nova data." };
+  if (params.dataAnterior === params.novaData) return { error: "Escolha uma data diferente." };
+
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("ingressos")
+    .select("id")
+    .eq("data_utilizacao", params.dataAnterior)
+    .eq("status", "Disponível")
+    .eq("sem_expiracao", false);
+  const ids = (data ?? []).map((i) => i.id as string);
+  if (ids.length === 0) return { quantidade: 0, emailsEnviados: 0, falhasEmail: [] } satisfies ResultadoRemarcacao;
+  return executarRemarcacao(ids, params.novaData, params.motivo);
 }

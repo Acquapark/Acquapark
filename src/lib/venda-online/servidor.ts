@@ -250,3 +250,32 @@ export async function getPedidosOnline(supabase: SupabaseClient, limite = 200): 
   if (error) throw error;
   return ((data ?? []) as Row[]).map(mapPedido);
 }
+
+/** Avisa o comprador online que a equipe mudou a data da visita (o QR Code continua o mesmo). */
+export async function enviarEmailRemarcacao(
+  supabase: SupabaseClient,
+  params: { pedidoId: string; dataAnterior: string; quantidade: number; motivo?: string },
+): Promise<{ ok: true } | { error: string }> {
+  const { data } = await supabase.from("pedidos_online").select("*").eq("id", params.pedidoId).maybeSingle();
+  if (!data) return { error: "Pedido não encontrado." };
+  const pedido = mapPedido(data as Row);
+
+  const link = `${urlDoSite()}/comprar/pedido/${pedido.token}`;
+  const html = `
+    <div style="font-family:Arial,Helvetica,sans-serif;color:#1f2430;max-width:520px">
+      <h2 style="color:#1d4ed8">A data da sua visita mudou</h2>
+      <p>Olá, ${escaparHtml(pedido.compradorNome.split(" ")[0])}! O Acqua Park remarcou ${params.quantidade} ingresso(s) do pedido <strong>${pedido.numero}</strong>.</p>
+      <p>
+        <span style="color:#9aa3b2;text-decoration:line-through">${formatDate(params.dataAnterior)}</span><br />
+        <strong style="font-size:18px">Nova data: ${formatDate(pedido.dataUtilizacao)}</strong>
+      </p>
+      ${params.motivo ? `<p><strong>Motivo:</strong> ${escaparHtml(params.motivo)}</p>` : ""}
+      <p>Seus ingressos e QR Codes continuam os mesmos — não é preciso fazer nada.</p>
+      <p style="margin:24px 0">
+        <a href="${link}" style="background:#1d4ed8;color:#fff;padding:12px 20px;border-radius:6px;text-decoration:none;font-weight:bold">Ver meus ingressos</a>
+      </p>
+      <p style="font-size:13px;color:#6b7385">Dúvidas? Fale com o Acqua Park.</p>
+    </div>`;
+
+  return enviarEmail({ para: pedido.compradorEmail, assunto: `Nova data da sua visita — pedido ${pedido.numero}`, html });
+}

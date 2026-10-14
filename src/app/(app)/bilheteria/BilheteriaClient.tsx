@@ -3,7 +3,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Lock, Plus, Printer, RotateCcw, Search, Ticket as TicketIcon, Trash2 } from "lucide-react";
+import { CalendarClock, Lock, Plus, Printer, RotateCcw, Search, Ticket as TicketIcon, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -22,7 +22,8 @@ import { IngressosLoteModal } from "@/components/bilheteria/IngressosLoteModal";
 import { VendasOnlineTab } from "@/components/bilheteria/VendasOnlineTab";
 import type { PedidoOnline } from "@/lib/venda-online/servidor";
 import { getAutoPrint, imprimirIngresso, imprimirIngressos } from "@/lib/print-ingresso";
-import { cancelarIngresso, excluirIngresso, reativarIngresso } from "./actions";
+import { RemarcarModal } from "@/components/bilheteria/RemarcarModal";
+import { cancelarIngresso, excluirIngresso, reativarIngresso, remarcarIngressos } from "./actions";
 
 const STATUS_OPTIONS: IngressoStatus[] = ["Disponível", "Utilizado", "Cancelado", "Expirado"];
 
@@ -53,6 +54,7 @@ export function BilheteriaClient({
   const [busca, setBusca] = useState("");
   const [statusFiltro, setStatusFiltro] = useState("Todos");
   const [tipoFiltro, setTipoFiltro] = useState("Todos");
+  const [remarcando, setRemarcando] = useState<Ingresso | null>(null);
   const [de, setDe] = useState(periodo.de);
   const [ate, setAte] = useState(periodo.ate);
 
@@ -375,6 +377,12 @@ export function BilheteriaClient({
                               Imprimir
                             </Button>
                           )}
+                          {i.status === "Disponível" && !i.semExpiracao && pode("ingressos.alterar_data") && (
+                            <Button variant="ghost" size="sm" onClick={() => setRemarcando(i)} title="Remarcar a data de utilização">
+                              <CalendarClock size={13} />
+                              Alterar data
+                            </Button>
+                          )}
                           {i.status === "Disponível" && pode("ingressos.cancelar") && (
                             <Button
                               variant="ghost"
@@ -438,6 +446,21 @@ export function BilheteriaClient({
 
       <VendaModal key={vendaKey} open={vendaOpen} onClose={() => setVendaOpen(false)} tipos={tipos} onVendido={handleVendido} />
       <IngressosLoteModal open={lote.length > 0} onClose={() => setLote([])} ingressos={lote} />
+      {remarcando && (
+        <RemarcarModal
+          open
+          onClose={() => setRemarcando(null)}
+          titulo={`Alterar data — ${remarcando.numero}`}
+          dataAtual={remarcando.dataUtilizacao}
+          descricao={
+            <p>
+              {remarcando.tipo} · {remarcando.comprador} · hoje marcado para <strong>{formatDate(remarcando.dataUtilizacao)}</strong>
+              {remarcando.online && " (comprado online — o comprador recebe um e-mail com a nova data)"}.
+            </p>
+          }
+          onConfirmar={(novaData, motivo) => remarcarIngressos({ ingressoIds: [remarcando.id], novaData, motivo })}
+        />
+      )}
       <IngressoQrModal open={!!qrIngresso} onClose={() => setQrIngresso(null)} ingresso={qrIngresso} title={qrTitle} />
     </div>
   );

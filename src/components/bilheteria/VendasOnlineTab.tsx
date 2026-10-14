@@ -1,14 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ExternalLink, Mail, Search } from "lucide-react";
+import { CalendarClock, ExternalLink, Mail, Search } from "lucide-react";
 import { Badge, StatusTone } from "@/components/ui/Badge";
 import { Input, Select } from "@/components/ui/Field";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import type { PedidoOnline } from "@/lib/venda-online/servidor";
-import { reenviarEmailPedidoOnline } from "@/app/(app)/bilheteria/actions";
+import { reenviarEmailPedidoOnline, remarcarPedidoOnline } from "@/app/(app)/bilheteria/actions";
+import { RemarcarModal } from "./RemarcarModal";
 
 const TOM: Record<PedidoOnline["status"], StatusTone> = {
   Pago: "success",
@@ -23,6 +24,7 @@ export function VendasOnlineTab({ pedidos }: { pedidos: PedidoOnline[] }) {
   const [status, setStatus] = useState("Todos");
   const [enviandoId, setEnviandoId] = useState<string | null>(null);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const [remarcando, setRemarcando] = useState<PedidoOnline | null>(null);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -128,6 +130,16 @@ export function VendasOnlineTab({ pedidos }: { pedidos: PedidoOnline[] }) {
                   >
                     <ExternalLink size={14} />
                   </a>
+                  {p.status === "Pago" && pode("ingressos.alterar_data") && (
+                    <button
+                      type="button"
+                      onClick={() => setRemarcando(p)}
+                      className="rounded-[4px] p-1.5 text-gray-500 hover:bg-gray-100 hover:text-primary-600"
+                      title="Remarcar o pedido (muda a data de todos os ingressos não usados)"
+                    >
+                      <CalendarClock size={14} />
+                    </button>
+                  )}
                   {p.status === "Pago" && pode("ingressos.criar") && (
                     <button
                       type="button"
@@ -145,6 +157,23 @@ export function VendasOnlineTab({ pedidos }: { pedidos: PedidoOnline[] }) {
           ))}
         </Tbody>
       </Table>
+
+      {remarcando && (
+        <RemarcarModal
+          open
+          onClose={() => setRemarcando(null)}
+          titulo={`Remarcar pedido ${remarcando.numero}`}
+          dataAtual={remarcando.dataUtilizacao}
+          descricao={
+            <p>
+              {remarcando.compradorNome} · {remarcando.quantidade} ingresso(s) para{" "}
+              <strong>{formatDate(remarcando.dataUtilizacao)}</strong>. Os ingressos ainda não usados vão para a nova data e o
+              comprador recebe um e-mail.
+            </p>
+          }
+          onConfirmar={(novaData, motivo) => remarcarPedidoOnline({ pedidoId: remarcando.id, novaData, motivo })}
+        />
+      )}
     </>
   );
 }

@@ -9,6 +9,10 @@ import { cn } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { definirDatasFuncionamento, salvarConfigVendaOnline } from "@/app/(app)/configuracoes/actions";
 import { Calendario, somarMeses } from "@/components/ui/Calendario";
+import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
+import { RemarcarModal } from "@/components/bilheteria/RemarcarModal";
+import { contarIngressosDoDia, remarcarDia } from "@/app/(app)/bilheteria/actions";
+import { formatDate } from "@/lib/utils";
 import type { ConfigVendaOnline } from "@/lib/venda-online/servidor";
 
 function hojeBR() {
@@ -31,6 +35,10 @@ export function VendaOnlineSection({ config, datasAbertas }: { config: ConfigVen
   const [abertas, setAbertas] = useState(() => new Set(datasAbertas));
   const [mes, setMes] = useState(hoje.slice(0, 7));
   const [erroDatas, setErroDatas] = useState("");
+  const [avisoDatas, setAvisoDatas] = useState("");
+  // Fechar um dia que já tem ingressos vendidos: pergunta antes o que fazer com eles.
+  const [fechando, setFechando] = useState<{ data: string; quantidade: number } | null>(null);
+  const [remarcandoDia, setRemarcandoDia] = useState<string | null>(null);
 
   async function aplicar(abrir: string[], fechar: string[]) {
     if (abrir.length === 0 && fechar.length === 0) return;
@@ -51,6 +59,32 @@ export function VendaOnlineSection({ config, datasAbertas }: { config: ConfigVen
     const [ano, m] = mes.split("-").map(Number);
     const total = new Date(Date.UTC(ano, m, 0)).getUTCDate();
     return Array.from({ length: total }, (_, i) => `${mes}-${String(i + 1).padStart(2, "0")}`).filter((d) => d >= hoje);
+  }
+
+  async function fecharDia(d: string) {
+    setAvisoDatas("");
+    const contagem = await contarIngressosDoDia(d);
+    if ("quantidade" in contagem && contagem.quantidade > 0) {
+      setFechando({ data: d, quantidade: contagem.quantidade });
+      return;
+    }
+    aplicar([], [d]);
+  }
+
+  /** "Limpar mês" só fecha os dias sem ingressos vendidos; os outros são fechados um a um (para remarcar). */
+  async function limparMes() {
+    setAvisoDatas("");
+    const contagens = await Promise.all(abertasNoMes.map(async (d) => ({ d, r: await contarIngressosDoDia(d) })));
+    const comIngressos = contagens.filter(({ r }) => !("quantidade" in r) || r.quantidade > 0).map(({ d }) => d);
+    aplicar(
+      [],
+      abertasNoMes.filter((d) => !comIngressos.includes(d)),
+    );
+    if (comIngressos.length > 0) {
+      setAvisoDatas(
+        `Não fechei ${comIngressos.map((d) => formatDate(d).slice(0, 5)).join(", ")}: já têm ingressos vendidos. Clique em cada dia para fechar e remarcar.`,
+      );
+    }
   }
 
   function abrirFinsDeSemana() {
@@ -156,7 +190,7 @@ export function VendaOnlineSection({ config, datasAbertas }: { config: ConfigVen
               estadoDoDia={(d) => (d < hoje || !podeEditar ? (abertas.has(d) ? "marcado" : "desabilitado") : abertas.has(d) ? "marcado" : "disponivel")}
               onClicarDia={(d) => {
                 if (d < hoje || !podeEditar) return;
-                if (abertas.has(d)) aplicar([], [d]);
+                if (abertas.has(d)) fecharDia(d);
                 else aplicar([d], []);
               }}
             />
@@ -170,12 +204,13 @@ export function VendaOnlineSection({ config, datasAbertas }: { config: ConfigVen
                 <Button variant="secondary" size="sm" onClick={abrirFinsDeSemana}>
                   Abrir fins de semana do mês
                 </Button>
-                <Button variant="ghost" size="sm" onClick={() => aplicar([], abertasNoMes)} disabled={abertasNoMes.length === 0}>
+                <Button variant="ghost" size="sm" onClick={limparMes} disabled={abertasNoMes.length === 0}>
                   Limpar mês
                 </Button>
               </div>
             )}
             {erroDatas && <p className="text-xs text-danger-600">{erroDatas}</p>}
+            {avisoDatas && <p className="max-w-xs text-xs text-warning-700">{avisoDatas}</p>}
           </div>
         </div>
       </div>
@@ -187,6 +222,73 @@ export function VendaOnlineSection({ config, datasAbertas }: { config: ConfigVen
 
       {mensagem && (
         <p className={cn("mt-3 text-xs", mensagem.tipo === "ok" ? "text-success-700" : "text-danger-600")}>{mensagem.texto}</p>
+      )}
+
+      <Modal open={!!fechando} onClose={() => setFechando(null)} size="md">
+        <ModalHeader title={fechando ? `Fechar ${formatDate(fechando.data)}?` : ""} onClose={() => setFechando(null)} />
+        <ModalBody>
+          {fechando && (
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>
+                Já existem <strong>{fechando.quantidade} ingresso(s)</strong> não usados para {formatDate(fechando.data)} (balcão e
+                online).
+              </p>
+              <p>
+                Se o parque não vai abrir, remarque esses ingressos para outra data — os compradores online recebem um e-mail. Fechar
+                sem remarcar só tira o dia da venda online: os ingressos já vendidos continuam valendo nessa data.
+              </p>
+              {!pode("ingressos.alterar_data") && (
+                <p className="text-warning-700">Você não tem a permissão &quot;Alterar data de utilização&quot; para remarcar.</p>
+              )}
+            </div>
+          )}
+        </ModalBody>
+        <ModalFooter>
+          <Button variant="secondary" onClick={() => setFechando(null)}>
+            Cancelar
+          </Button>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (fechando) aplicar([], [fechando.data]);
+                setFechando(null);
+              }}
+            >
+              Fechar sem remarcar
+            </Button>
+            {pode("ingressos.alterar_data") && (
+              <Button
+                onClick={() => {
+                  setRemarcandoDia(fechando?.data ?? null);
+                  setFechando(null);
+                }}
+              >
+                Fechar e remarcar
+              </Button>
+            )}
+          </div>
+        </ModalFooter>
+      </Modal>
+
+      {remarcandoDia && (
+        <RemarcarModal
+          open
+          onClose={() => setRemarcandoDia(null)}
+          titulo={`Remarcar os ingressos de ${formatDate(remarcandoDia)}`}
+          dataAtual={remarcandoDia}
+          descricao={
+            <p>
+              Todos os ingressos ainda não usados de <strong>{formatDate(remarcandoDia)}</strong> vão para a nova data, e o dia sai
+              da venda online.
+            </p>
+          }
+          onConfirmar={async (novaData, motivo) => {
+            const result = await remarcarDia({ dataAnterior: remarcandoDia, novaData, motivo });
+            if (!("error" in result)) await aplicar([], [remarcandoDia]);
+            return result;
+          }}
+        />
       )}
 
       {podeEditar && (
