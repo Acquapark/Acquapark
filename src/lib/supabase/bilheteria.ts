@@ -25,7 +25,7 @@ export async function getTiposIngresso(supabase: SupabaseClient): Promise<TipoIn
 }
 
 const INGRESSO_SELECT =
-  "id, numero, codigo, comprador_nome, data_utilizacao, valor, valor_desconto, status, forma_pagamento, sem_expiracao, cortesia_mes, tipos_ingresso ( nome ), cupons_desconto ( codigo ), associados ( nome )";
+  "id, numero, codigo, comprador_nome, data_utilizacao, valor, valor_desconto, status, forma_pagamento, sem_expiracao, cortesia_mes, pedido_online_id, tipos_ingresso ( nome ), cupons_desconto ( codigo ), associados ( nome )";
 
 function mapIngresso(row: Row): Ingresso {
   return {
@@ -44,6 +44,7 @@ function mapIngresso(row: Row): Ingresso {
     formaPagamento: (row.forma_pagamento as string) ?? undefined,
     cupomCodigo: (row.cupons_desconto as Row | null)?.codigo as string | undefined,
     valorDesconto: row.valor_desconto ? Number(row.valor_desconto) : undefined,
+    online: !!row.pedido_online_id,
   };
 }
 

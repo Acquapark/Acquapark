@@ -134,6 +134,8 @@ export interface Ingresso {
   formaPagamento?: string;
   cupomCodigo?: string;
   valorDesconto?: number;
+  /** Comprado na venda online: o pagamento foi pela Asaas, fora do caixa do balcão. */
+  online?: boolean;
 }
 
 export type TipoDescontoCupom = "percentual" | "valor_fixo";

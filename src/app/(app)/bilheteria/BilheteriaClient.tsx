@@ -380,8 +380,15 @@ export function BilheteriaClient({
                               variant="ghost"
                               size="sm"
                               onClick={() => setCancelandoId(i.id)}
-                              disabled={!caixaAberto}
-                              title={caixaAberto ? undefined : "Abra o caixa para cancelar (o estorno sai do caixa)"}
+                              // Ingresso online não passa pelo caixa do balcão: cancela mesmo com ele fechado.
+                              disabled={!caixaAberto && !i.online}
+                              title={
+                                i.online
+                                  ? "Comprado online: o estorno não entra no caixa; devolução de dinheiro, se houver, é feita na Asaas"
+                                  : caixaAberto
+                                    ? undefined
+                                    : "Abra o caixa para cancelar (o estorno sai do caixa)"
+                              }
                             >
                               Cancelar
                             </Button>
