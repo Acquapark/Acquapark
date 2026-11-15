@@ -22,6 +22,7 @@ import {
 } from "@/lib/associados/cadastro";
 import { ativarAssociadoSeParcela1Paga } from "@/lib/supabase/associados";
 import { paymentGateway } from "@/lib/gateway";
+import { conferirCupomPlano } from "@/lib/cupom-plano-servidor";
 
 export async function createAssociado(form: AssociadoFormState) {
   const negado = await exigirPermissao("associados.criar");
@@ -104,6 +105,7 @@ export async function createAssociado(form: AssociadoFormState) {
       valorOverride,
       descontoPercentual,
       primeiraParcelaManual: form.primeiraParcelaData || undefined,
+      cupomCodigo: form.cupom?.codigo,
     });
     if (contratoResult.error) {
       return { error: contratoResult.error, associadoId: associado.id as string };
@@ -137,6 +139,13 @@ export async function createAssociado(form: AssociadoFormState) {
     credencialCodigo: (credencial?.codigo as string) ?? undefined,
     avisoContrato: avisoContrato ?? undefined,
   };
+}
+
+/** Confere um cupom de plano no painel (sem consumir uso) para mostrar o desconto. */
+export async function conferirCupomPlanoPainel(codigo: string) {
+  const negado = await exigirPermissao("planos_associado.criar", "associados.criar");
+  if (negado) return { error: negado.error };
+  return conferirCupomPlano(await createClient(), codigo);
 }
 
 export async function deleteAssociado(id: string) {
@@ -406,6 +415,7 @@ export async function vincularPlano(
   dataInicio: string,
   valorOverride?: number,
   primeiraParcelaManual?: string,
+  cupomCodigo?: string,
 ) {
   const negado = await exigirPermissao("planos_associado.criar");
   if (negado) return { error: negado.error };
@@ -428,6 +438,7 @@ export async function vincularPlano(
     dataInicio,
     valorOverride,
     primeiraParcelaManual,
+    cupomCodigo,
   });
   if (result.error) return { error: result.error };
 

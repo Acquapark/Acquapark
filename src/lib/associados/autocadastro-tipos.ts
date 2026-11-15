@@ -24,6 +24,8 @@ export interface AutocadastroDados {
   estado: string;
   /** Código da empresa parceira ("" = não veio por empresa parceira). O servidor confere. */
   empresaCodigo: string;
+  /** Cupom de desconto do plano ("" = sem cupom). O servidor confere e consome o uso. */
+  cupomCodigo: string;
   planoId: string;
   dependentes: AutocadastroDependente[];
   senha: string;

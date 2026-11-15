@@ -11,6 +11,8 @@ import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { Contrato, Plano } from "@/types";
 import { vincularPlano } from "@/app/(app)/associados/actions";
 import { parcelasDoPlano } from "@/lib/mensalidades-engine";
+import { aplicarCupomNasParcelas, CupomPlano } from "@/lib/cupom-plano";
+import { CupomPlanoField } from "./CupomPlanoField";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 
 export function ProfilePlanoTab({
@@ -27,6 +29,7 @@ export function ProfilePlanoTab({
   const [planoId, setPlanoId] = useState("");
   const [dataInicio, setDataInicio] = useState(new Date().toISOString().slice(0, 10));
   const [primeiraParcelaData, setPrimeiraParcelaData] = useState("");
+  const [cupom, setCupom] = useState<CupomPlano | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -38,7 +41,7 @@ export function ProfilePlanoTab({
   }
 
   const previewParcelas = planoSelecionado
-    ? parcelasDoPlano(planoSelecionado, dataInicio, planoSelecionado.valor, primeiraParcelaData)
+    ? aplicarCupomNasParcelas(parcelasDoPlano(planoSelecionado, dataInicio, planoSelecionado.valor, primeiraParcelaData), cupom)
     : [];
   const podeGerarPreview = previewParcelas.length > 0;
   const aniversario = planoSelecionado?.vencimentoNaContratacao === true;
@@ -54,7 +57,7 @@ export function ProfilePlanoTab({
     }
     setSaving(true);
     setError("");
-    const result = await vincularPlano(associadoId, planoId, dataInicio, undefined, primeiraParcelaData || undefined);
+    const result = await vincularPlano(associadoId, planoId, dataInicio, undefined, primeiraParcelaData || undefined, cupom?.codigo);
     setSaving(false);
     if (result.error) {
       setError(result.error);
@@ -153,6 +156,10 @@ export function ProfilePlanoTab({
           {!aniversario && planoSelecionado.regraPrimeiraParcela === "adesao" && (
             <p className="text-xs text-gray-500">A 1ª parcela usará a data de início acima.</p>
           )}
+
+          <div className="w-full max-w-sm">
+            <CupomPlanoField cupom={cupom} onChange={setCupom} />
+          </div>
 
           <Button onClick={handleVincular} disabled={saving}>
             <Link2 size={14} />

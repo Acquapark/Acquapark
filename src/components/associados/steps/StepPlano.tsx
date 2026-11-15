@@ -6,6 +6,8 @@ import { AssociadoFormState } from "../form-types";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { Plano } from "@/types";
 import { parcelasDoPlano, valorComDesconto } from "@/lib/mensalidades-engine";
+import { aplicarCupomNasParcelas } from "@/lib/cupom-plano";
+import { CupomPlanoField } from "../CupomPlanoField";
 
 export function StepPlano({
   form,
@@ -30,7 +32,9 @@ export function StepPlano({
   const valorBase = form.valorMensalidade ? Number(form.valorMensalidade.replace(",", ".")) : (plano?.valor ?? 0);
   const descontoPercentual = Number(form.desconto.replace(",", ".")) || 0;
   const valor = valorComDesconto(valorBase, descontoPercentual);
-  const previewParcelas = plano ? parcelasDoPlano(plano, form.dataInicio, valor, form.primeiraParcelaData) : [];
+  const previewParcelas = plano
+    ? aplicarCupomNasParcelas(parcelasDoPlano(plano, form.dataInicio, valor, form.primeiraParcelaData), form.cupom)
+    : [];
   const podeGerarPreview = previewParcelas.length > 0;
   const aniversario = plano?.vencimentoNaContratacao === true;
 
@@ -134,6 +138,12 @@ export function StepPlano({
             <p className="mt-1 text-[11px] text-gray-400">
               {formatCurrency(valorBase)} − {descontoPercentual}% = <span className="font-medium text-gray-600">{formatCurrency(valor)}</span>
             </p>
+          )}
+        </div>
+        <div className="sm:col-span-2">
+          <CupomPlanoField cupom={form.cupom} onChange={(cupom) => update({ cupom })} />
+          {form.cupom && descontoPercentual > 0 && (
+            <p className="mt-1 text-[11px] text-gray-400">O cupom é aplicado depois do desconto (%) acima.</p>
           )}
         </div>
       </div>

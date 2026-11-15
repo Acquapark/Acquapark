@@ -113,6 +113,8 @@ function mapCupom(row: Row): CupomDesconto {
     validade: (row.validade as string) ?? null,
     limiteUsos: (row.limite_usos as number) ?? null,
     usos: row.usos as number,
+    aplicaA: (row.aplica_a as CupomDesconto["aplicaA"]) ?? "ingressos",
+    mesesDesconto: (row.meses_desconto as number) ?? null,
   };
 }
 

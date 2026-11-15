@@ -1,4 +1,5 @@
 import { Dependente } from "@/types";
+import type { CupomPlano } from "@/lib/cupom-plano";
 
 export interface AssociadoFormState {
   // Etapa 1 — Dados básicos
@@ -32,6 +33,8 @@ export interface AssociadoFormState {
   valorMensalidade: string;
   formaPagamento: string;
   desconto: string;
+  /** Cupom de plano já conferido (o uso só é consumido ao salvar). */
+  cupom: CupomPlano | null;
   planoObservacoes: string;
 
   // Etapa 4 — Contrato
@@ -65,6 +68,7 @@ export const emptyAssociadoForm: AssociadoFormState = {
   valorMensalidade: "",
   formaPagamento: "",
   desconto: "",
+  cupom: null,
   planoObservacoes: "",
   numeroContrato: "",
   contratoObservacoes: "",

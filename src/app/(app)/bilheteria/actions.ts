@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
-import { RegraReentrada, TipoDescontoCupom } from "@/types";
+import { CupomAplicaA, RegraReentrada, TipoDescontoCupom } from "@/types";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
 import { hojeBR } from "@/lib/datas-br";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -254,6 +254,9 @@ export interface CupomInput {
   ativo: boolean;
   validade: string;
   limiteUsos: string;
+  aplicaA: CupomAplicaA;
+  /** Em plano: "" = todas as mensalidades, ou o número das primeiras com desconto. */
+  mesesDesconto: string;
 }
 
 function validarCupomInput(input: CupomInput): string | null {
@@ -263,6 +266,10 @@ function validarCupomInput(input: CupomInput): string | null {
   if (input.validade && !/^\d{4}-\d{2}-\d{2}$/.test(input.validade)) return "Data de validade inválida.";
   if (input.limiteUsos && (!Number.isInteger(Number(input.limiteUsos)) || Number(input.limiteUsos) <= 0)) {
     return "O limite de usos deve ser um número inteiro maior que zero.";
+  }
+  if (!["ingressos", "planos", "ambos"].includes(input.aplicaA)) return "Escolha para que o cupom vale.";
+  if (input.mesesDesconto && (!Number.isInteger(Number(input.mesesDesconto)) || Number(input.mesesDesconto) <= 0)) {
+    return "O número de mensalidades com desconto deve ser um inteiro maior que zero.";
   }
   return null;
 }
@@ -276,6 +283,9 @@ function cupomRow(input: CupomInput) {
     ativo: input.ativo,
     validade: input.validade || null,
     limite_usos: input.limiteUsos ? Number(input.limiteUsos) : null,
+    aplica_a: input.aplicaA,
+    // Só faz sentido em plano; cupom só de ingresso não guarda meses.
+    meses_desconto: input.aplicaA !== "ingressos" && input.mesesDesconto ? Number(input.mesesDesconto) : null,
   };
 }
 
@@ -328,7 +338,9 @@ export async function excluirCupom(id: string) {
   const { error } = await supabase.from("cupons_desconto").delete().eq("id", id);
   if (error) {
     if (error.code === "23503") {
-      return { error: "Este cupom já foi usado em alguma venda e não pode ser excluído. Desative-o em vez de excluir." };
+      return {
+        error: "Este cupom já foi usado (em venda de ingresso ou em plano de associado) e não pode ser excluído. Desative-o em vez de excluir.",
+      };
     }
     return { error: error.message };
   }
@@ -352,12 +364,13 @@ export async function validarCupom(
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("cupons_desconto")
-    .select("tipo_desconto, valor, ativo, validade, limite_usos, usos")
+    .select("tipo_desconto, valor, ativo, validade, limite_usos, usos, aplica_a")
     .ilike("codigo", codigo.trim())
     .maybeSingle();
   if (error) return { error: error.message };
   if (!data) return { error: "Cupom não encontrado." };
   if (!data.ativo) return { error: "Este cupom não está mais ativo." };
+  if (data.aplica_a === "planos") return { error: "Este cupom vale só para planos de associado, não para ingressos." };
   if (data.validade && data.validade < hojeBR()) return { error: "Este cupom expirou." };
   if (data.limite_usos !== null && data.usos >= data.limite_usos) return { error: "Este cupom atingiu o limite de usos." };
 

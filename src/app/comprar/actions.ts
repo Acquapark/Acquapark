@@ -57,10 +57,11 @@ export async function conferirCupom(
   const admin = createAdminClient();
   const { data } = await admin
     .from("cupons_desconto")
-    .select("tipo_desconto, valor, ativo, validade, limite_usos, usos")
+    .select("tipo_desconto, valor, ativo, validade, limite_usos, usos, aplica_a")
     .ilike("codigo", codigo.trim())
     .maybeSingle();
-  if (!data || !data.ativo) return { error: "Cupom inválido." };
+  // Cupom só de plano de associado: para a compra de ingressos ele não existe.
+  if (!data || !data.ativo || data.aplica_a === "planos") return { error: "Cupom inválido." };
   if (data.validade && data.validade < hojeBR()) return { error: "Este cupom expirou." };
   if (data.limite_usos !== null && data.usos >= data.limite_usos) return { error: "Este cupom atingiu o limite de usos." };
 

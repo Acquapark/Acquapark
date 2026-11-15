@@ -11,6 +11,9 @@ import { criarLoginDoAssociado } from "./acesso-portal";
 import { getContratoAutomatico } from "@/lib/termos";
 import { FOTO_TAMANHO_MAXIMO } from "./autocadastro-tipos";
 import { variaveisDoAssociadoUsadas } from "@/lib/contracts/variables";
+import { aplicarCupomNasParcelas, CupomPlano, valorComCupom } from "@/lib/cupom-plano";
+import { devolverCupomPlano, usarCupomPlano } from "@/lib/cupom-plano-servidor";
+import { ativarAssociadoSeParcela1Paga } from "@/lib/supabase/associados";
 
 /*
  * Etapas do cadastro de associado compartilhadas entre o painel da equipe
@@ -202,6 +205,8 @@ export async function criarContratoEMensalidades(
     valorOverride?: number;
     descontoPercentual?: number;
     primeiraParcelaManual?: string;
+    /** Cupom de desconto de plano. É conferido e tem 1 uso consumido aqui; inválido = erro. */
+    cupomCodigo?: string;
   },
 ) {
   const { data: planoRow, error: planoError } = await supabase
@@ -234,33 +239,54 @@ export async function criarContratoEMensalidades(
     primeiraParcelaVencimento = resolvido.primeiraParcelaVencimento;
   }
 
+  // Cupom: consome o uso agora (atômico no banco). Se algo falhar daqui em
+  // diante, o uso é devolvido para o cupom não "gastar" sem contrato.
+  let cupom: CupomPlano | null = null;
+  if (params.cupomCodigo?.trim()) {
+    const usado = await usarCupomPlano(supabase, params.cupomCodigo);
+    if ("error" in usado) return { error: usado.error };
+    cupom = usado.cupom;
+  }
+  async function falhar(mensagem: string) {
+    if (cupom) await devolverCupomPlano(supabase, cupom.id);
+    return { error: mensagem };
+  }
+
   const { data: contrato, error: contratoError } = await supabase
     .from("contratos")
     .insert({
       associado_id: params.associadoId,
       plano_id: params.planoId,
       data_inicio: params.dataInicio,
-      valor,
+      // Cupom em todas as mensalidades muda a mensalidade do contrato; cupom só
+      // nas primeiras não (a mensalidade "de verdade" continua a cheia).
+      valor: cupom && cupom.mesesDesconto === null ? valorComCupom(valor, cupom) : valor,
       quantidade_mensalidades: quantidadeMensalidades,
       regra_primeira_parcela: regraPrimeiraParcela,
       vencimento_na_contratacao: vencimentoNaContratacao,
+      cupom_id: cupom?.id ?? null,
       status: "Ativo",
     })
     .select("id, numero")
     .single();
   if (contratoError || !contrato) {
-    return { error: contratoError?.message ?? "Não foi possível criar o contrato." };
+    return falhar(contratoError?.message ?? "Não foi possível criar o contrato.");
   }
 
-  const parcelas = gerarParcelas({
-    dataInicio: params.dataInicio,
-    diaVencimento,
-    quantidadeMensalidades,
-    valor,
-    primeiraParcelaVencimento,
-    vencimentoNaContratacao,
-  });
+  const parcelas = aplicarCupomNasParcelas(
+    gerarParcelas({
+      dataInicio: params.dataInicio,
+      diaVencimento,
+      quantidadeMensalidades,
+      valor,
+      primeiraParcelaVencimento,
+      vencimentoNaContratacao,
+    }),
+    cupom,
+  );
 
+  // Mensalidade zerada pelo cupom já nasce paga: a Asaas não cobra R$ 0,00.
+  const agora = new Date().toISOString();
   const { data: mensalidadesInseridas, error: mensalidadesError } = await supabase
     .from("mensalidades")
     .insert(
@@ -271,11 +297,14 @@ export async function criarContratoEMensalidades(
         total_parcelas: p.totalParcelas,
         vencimento: p.vencimento,
         valor: p.valor,
-        status: "Pendente",
+        ...(p.valor <= 0 ? { status: "Pago", forma_pagamento: "Cupom", pago_em: agora } : { status: "Pendente" }),
       })),
     )
-    .select("id");
-  if (mensalidadesError) return { error: mensalidadesError.message };
+    .select("id, valor");
+  if (mensalidadesError) return falhar(mensalidadesError.message);
+
+  // 1ª parcela zerada = paga: o associado "Pendente" já vira "Ativo".
+  if (parcelas[0] && parcelas[0].valor <= 0) await ativarAssociadoSeParcela1Paga(supabase, params.associadoId, 1);
 
   // Cria a cobrança correspondente na Asaas pra cada mensalidade — em sequência
   // (evita rajada na API) e sem bloquear a criação do associado: uma falha aqui
@@ -283,6 +312,7 @@ export async function criarContratoEMensalidades(
   // botão "Sincronizar" no Financeiro, mesmo padrão não-bloqueante usado no
   // envio automático de contrato pra assinatura.
   for (const m of mensalidadesInseridas ?? []) {
+    if (Number(m.valor) <= 0) continue; // paga pelo cupom: nada a cobrar
     await sincronizarCobrancaAsaas(supabase, m.id as string);
   }
 

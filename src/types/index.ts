@@ -173,7 +173,19 @@ export interface CupomDesconto {
   validade: string | null;
   limiteUsos: number | null;
   usos: number;
+  /** Onde o cupom pode ser usado. Cupons antigos: só ingressos. */
+  aplicaA: CupomAplicaA;
+  /** Em plano: em quantas mensalidades o desconto vale (null = todas). */
+  mesesDesconto: number | null;
 }
+
+export type CupomAplicaA = "ingressos" | "planos" | "ambos";
+
+export const CUPOM_APLICA_A_LABEL: Record<CupomAplicaA, string> = {
+  ingressos: "Ingressos",
+  planos: "Planos de associado",
+  ambos: "Ingressos e planos",
+};
 
 export interface Catraca {
   id: string;

@@ -9,12 +9,18 @@ import { Badge } from "@/components/ui/Badge";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { formatCurrency, formatDate } from "@/lib/utils";
-import { CupomDesconto } from "@/types";
+import { CUPOM_APLICA_A_LABEL, CupomDesconto } from "@/types";
 import { excluirCupom, setCupomAtivo } from "@/app/(app)/bilheteria/actions";
 import { CupomModal } from "./CupomModal";
 
 function formatarDesconto(c: CupomDesconto) {
   return c.tipoDesconto === "percentual" ? `${c.valor}%` : formatCurrency(c.valor);
+}
+
+function formatarValePara(c: CupomDesconto) {
+  if (c.aplicaA === "ingressos") return CUPOM_APLICA_A_LABEL.ingressos;
+  const meses = c.mesesDesconto ? `${c.mesesDesconto} primeira(s) mensalidade(s)` : "todas as mensalidades";
+  return `${CUPOM_APLICA_A_LABEL[c.aplicaA]} (${meses})`;
 }
 
 export function CupomManager({ cupons }: { cupons: CupomDesconto[] }) {
@@ -72,7 +78,7 @@ export function CupomManager({ cupons }: { cupons: CupomDesconto[] }) {
       <div className="mb-4 flex items-center justify-between">
         <div>
           <h2 className="text-sm font-semibold text-gray-800">Cupons de Desconto</h2>
-          <p className="text-xs text-gray-500">Códigos que a equipe pode aplicar na venda de ingressos avulsos.</p>
+          <p className="text-xs text-gray-500">Códigos de desconto para ingressos avulsos e/ou planos de associado.</p>
         </div>
         {pode("cupons_desconto.criar") && (
           <Button size="sm" onClick={openNew}>
@@ -92,6 +98,7 @@ export function CupomManager({ cupons }: { cupons: CupomDesconto[] }) {
             <Th>Código</Th>
             <Th>Descrição</Th>
             <Th>Desconto</Th>
+            <Th>Vale para</Th>
             <Th>Validade</Th>
             <Th>Usos</Th>
             <Th>Status</Th>
@@ -99,12 +106,13 @@ export function CupomManager({ cupons }: { cupons: CupomDesconto[] }) {
           </tr>
         </Thead>
         <Tbody>
-          {cupons.length === 0 && <TableEmpty colSpan={7} message="Nenhum cupom cadastrado." />}
+          {cupons.length === 0 && <TableEmpty colSpan={8} message="Nenhum cupom cadastrado." />}
           {cupons.map((c) => (
             <Tr key={c.id}>
               <Td className="font-medium text-gray-800">{c.codigo}</Td>
               <Td className="max-w-xs whitespace-normal text-gray-500">{c.descricao || "—"}</Td>
               <Td>{formatarDesconto(c)}</Td>
+              <Td className="whitespace-normal text-xs text-gray-600">{formatarValePara(c)}</Td>
               <Td>{c.validade ? formatDate(c.validade) : "Sem validade"}</Td>
               <Td>
                 {c.usos}

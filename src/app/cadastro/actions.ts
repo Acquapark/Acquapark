@@ -16,6 +16,8 @@ import {
 } from "@/lib/associados/cadastro";
 import { getPlanosAutocadastro } from "@/lib/associados/autocadastro";
 import { getEmpresaAtivaPorCodigo } from "@/lib/supabase/empresas-parceiras";
+import { conferirCupomPlano } from "@/lib/cupom-plano-servidor";
+import type { CupomPlano } from "@/lib/cupom-plano";
 import { CODIGO_EMPRESA_TAMANHO, normalizarCodigoEmpresa } from "@/lib/empresas-codigo";
 import { getContratoAutomatico, getTermoVigente, registrarAceite } from "@/lib/termos";
 import { AutocadastroDados, SENHA_TAMANHO_MINIMO } from "@/lib/associados/autocadastro-tipos";
@@ -23,6 +25,8 @@ import { AutocadastroDados, SENHA_TAMANHO_MINIMO } from "@/lib/associados/autoca
 const LIMITE_TENTATIVAS_POR_HORA = 5;
 /** Conferências de código de empresa por IP/hora — impede ficar chutando códigos. */
 const LIMITE_CODIGO_EMPRESA_POR_HORA = 10;
+/** Conferências de cupom de plano por IP/hora. */
+const LIMITE_CUPOM_POR_HORA = 10;
 const IDADE_MINIMA_TITULAR = 18;
 const MENSAGEM_DADOS_EM_USO =
   "Não foi possível concluir o cadastro com esses dados. Se você já é associado, entre pelo Portal do Associado ou procure a secretaria do parque.";
@@ -118,6 +122,31 @@ export async function verificarCodigoEmpresa(codigo: string): Promise<{ error: s
 }
 
 /**
+ * Confere o cupom de desconto do plano na página pública (sem consumir uso) e
+ * devolve as regras para a tela mostrar o preço com desconto. Limitado por IP
+ * para ninguém descobrir cupons na tentativa e erro.
+ */
+export async function verificarCupomPlano(codigo: string): Promise<{ error: string } | { cupom: CupomPlano }> {
+  if (!String(codigo ?? "").trim()) return { error: "Informe o código do cupom." };
+
+  const admin = createAdminClient();
+  const ip = await ipDaRequisicao();
+  const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: tentativas } = await admin
+    .from("autocadastro_tentativas")
+    .select("id", { count: "exact", head: true })
+    .eq("ip", ip)
+    .eq("tipo", "cupom_plano")
+    .gte("criado_em", umaHoraAtras);
+  if ((tentativas ?? 0) >= LIMITE_CUPOM_POR_HORA) {
+    return { error: "Muitas tentativas de cupom. Aguarde um pouco e tente novamente." };
+  }
+  await admin.from("autocadastro_tentativas").insert({ ip, tipo: "cupom_plano" });
+
+  return conferirCupomPlano(admin, String(codigo));
+}
+
+/**
  * Autocadastro público: cria o associado como "Pendente" (vira "Ativo" quando
  * a 1ª parcela é paga, pela mesma regra do cadastro feito pela equipe), com
  * contrato, mensalidades, credencial, acesso ao Portal e contrato enviado para
@@ -197,6 +226,14 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
       return { error: "O código da empresa não é válido. Confira com a sua empresa ou desmarque a opção de empresa parceira." };
     }
     empresaParceiraId = empresa.id;
+  }
+
+  // Cupom do plano: conferido antes de criar qualquer coisa, para a pessoa
+  // receber a mensagem certa. O uso só é consumido na criação do contrato.
+  const cupomCodigo = String(dados.cupomCodigo ?? "").trim();
+  if (cupomCodigo) {
+    const cupom = await conferirCupomPlano(admin, cupomCodigo);
+    if ("error" in cupom) return { error: `Cupom de desconto: ${cupom.error} Remova o cupom ou use outro.` };
   }
 
   const cpf = formatCPF(dados.cpf);
@@ -280,10 +317,19 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     }
   }
 
-  const contrato = await criarContratoEMensalidades(admin, { associadoId, planoId: plano.id, dataInicio: hoje });
+  const contrato = await criarContratoEMensalidades(admin, {
+    associadoId,
+    planoId: plano.id,
+    dataInicio: hoje,
+    cupomCodigo: cupomCodigo || undefined,
+  });
   if (contrato.error) {
     await desfazer(associadoId);
     console.error("Autocadastro: falha ao criar contrato:", contrato.error);
+    // Cupom que acabou de esgotar/expirar entre a conferência e agora.
+    if (cupomCodigo && /cupom/i.test(contrato.error)) {
+      return { error: `Cupom de desconto: ${contrato.error} Remova o cupom ou use outro.` };
+    }
     return { error: "Não foi possível concluir o cadastro. Tente novamente ou procure a secretaria." };
   }
 
