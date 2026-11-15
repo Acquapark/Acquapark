@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
+import { gerarCodigoEmpresa } from "@/lib/empresas-codigo";
 
 export interface EmpresaParceiraInput {
   nome: string;
@@ -35,7 +36,12 @@ function colunas(input: EmpresaParceiraInput) {
 }
 
 function mensagemDeErro(error: { code?: string; message: string }) {
-  if (error.code === "23505") return "Já existe uma empresa parceira com esse nome.";
+  if (error.code === "23505") {
+    // Código repetido é raríssimo (8 caracteres aleatórios): basta tentar de novo.
+    return error.message.includes("codigo")
+      ? "Não foi possível gerar um código único. Tente de novo."
+      : "Já existe uma empresa parceira com esse nome.";
+  }
   return error.message;
 }
 
@@ -51,10 +57,30 @@ export async function createEmpresaParceira(input: EmpresaParceiraInput) {
   if (invalido) return { error: invalido };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("empresas_parceiras").insert(colunas(input));
+  const { error } = await supabase.from("empresas_parceiras").insert({ ...colunas(input), codigo: gerarCodigoEmpresa() });
   if (error) return { error: mensagemDeErro(error) };
   revalidar();
   return { success: true };
+}
+
+/**
+ * Troca o código da empresa — usado quando o código vazou para quem não é
+ * funcionário. O antigo para de valer na hora; quem já se vinculou continua
+ * vinculado.
+ */
+export async function gerarNovoCodigoEmpresa(id: string): Promise<{ error: string } | { codigo: string }> {
+  const negado = await exigirPermissao("empresas_parceiras.editar");
+  if (negado) return { error: negado.error };
+
+  const supabase = await createClient();
+  const codigo = gerarCodigoEmpresa();
+  const { error } = await supabase
+    .from("empresas_parceiras")
+    .update({ codigo, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: mensagemDeErro(error) };
+  revalidar();
+  return { codigo };
 }
 
 export async function updateEmpresaParceira(id: string, input: EmpresaParceiraInput) {

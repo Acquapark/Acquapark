@@ -15,11 +15,14 @@ import {
   validarFoto,
 } from "@/lib/associados/cadastro";
 import { getPlanosAutocadastro } from "@/lib/associados/autocadastro";
-import { getEmpresasParceirasAtivas } from "@/lib/supabase/empresas-parceiras";
+import { getEmpresaAtivaPorCodigo } from "@/lib/supabase/empresas-parceiras";
+import { CODIGO_EMPRESA_TAMANHO, normalizarCodigoEmpresa } from "@/lib/empresas-codigo";
 import { getContratoAutomatico, getTermoVigente, registrarAceite } from "@/lib/termos";
 import { AutocadastroDados, SENHA_TAMANHO_MINIMO } from "@/lib/associados/autocadastro-tipos";
 
 const LIMITE_TENTATIVAS_POR_HORA = 5;
+/** Conferências de código de empresa por IP/hora — impede ficar chutando códigos. */
+const LIMITE_CODIGO_EMPRESA_POR_HORA = 10;
 const IDADE_MINIMA_TITULAR = 18;
 const MENSAGEM_DADOS_EM_USO =
   "Não foi possível concluir o cadastro com esses dados. Se você já é associado, entre pelo Portal do Associado ou procure a secretaria do parque.";
@@ -80,6 +83,41 @@ async function ipDaRequisicao(): Promise<string> {
 }
 
 /**
+ * Confere o código da empresa parceira digitado na página pública e devolve o
+ * nome da empresa, para a pessoa ver que acertou. Limitado por IP para ninguém
+ * descobrir códigos na tentativa e erro; o cadastro confere o código de novo.
+ */
+export async function verificarCodigoEmpresa(codigo: string): Promise<{ error: string } | { nome: string }> {
+  const normalizado = normalizarCodigoEmpresa(String(codigo ?? ""));
+  if (normalizado.length !== CODIGO_EMPRESA_TAMANHO) {
+    return { error: `O código da empresa tem ${CODIGO_EMPRESA_TAMANHO} caracteres.` };
+  }
+
+  const admin = createAdminClient();
+  const ip = await ipDaRequisicao();
+  const umaHoraAtras = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+  const { count: tentativas } = await admin
+    .from("autocadastro_tentativas")
+    .select("id", { count: "exact", head: true })
+    .eq("ip", ip)
+    .eq("tipo", "codigo_empresa")
+    .gte("criado_em", umaHoraAtras);
+  if ((tentativas ?? 0) >= LIMITE_CODIGO_EMPRESA_POR_HORA) {
+    return { error: "Muitas tentativas de código. Aguarde um pouco e tente novamente." };
+  }
+  await admin.from("autocadastro_tentativas").insert({ ip, tipo: "codigo_empresa" });
+
+  try {
+    const empresa = await getEmpresaAtivaPorCodigo(admin, normalizado);
+    if (!empresa) return { error: "Código não encontrado. Confira com a sua empresa." };
+    return { nome: empresa.nome };
+  } catch (err) {
+    console.error("Autocadastro: falha ao conferir código de empresa:", err);
+    return { error: "Não foi possível conferir o código agora. Tente novamente." };
+  }
+}
+
+/**
  * Autocadastro público: cria o associado como "Pendente" (vira "Ativo" quando
  * a 1ª parcela é paga, pela mesma regra do cadastro feito pela equipe), com
  * contrato, mensalidades, credencial, acesso ao Portal e contrato enviado para
@@ -114,11 +152,12 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     .from("autocadastro_tentativas")
     .select("id", { count: "exact", head: true })
     .eq("ip", ip)
+    .eq("tipo", "cadastro")
     .gte("criado_em", umaHoraAtras);
   if ((tentativas ?? 0) >= LIMITE_TENTATIVAS_POR_HORA) {
     return { error: "Muitas tentativas de cadastro. Aguarde um pouco e tente novamente." };
   }
-  await admin.from("autocadastro_tentativas").insert({ ip });
+  await admin.from("autocadastro_tentativas").insert({ ip, tipo: "cadastro" });
 
   // Dados que o modelo de contrato padrão usa: sem eles o contrato não sai.
   const faltandoParaContrato = (await camposExigidosPeloContrato(admin)).filter(
@@ -148,14 +187,16 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     };
   }
 
-  // Empresa parceira: opcional, mas se veio tem que ser uma das ativas (a página pública não é confiável).
+  // Empresa parceira: opcional. O vínculo só vale com o código de uma empresa
+  // ativa, conferido aqui de novo (a conferência na tela pode ter sido burlada).
   let empresaParceiraId: string | null = null;
-  if (dados.empresaParceiraId) {
-    const empresas = await getEmpresasParceirasAtivas(admin);
-    if (!empresas.some((e) => e.id === dados.empresaParceiraId)) {
-      return { error: "A empresa escolhida não está mais disponível. Recarregue a página e escolha de novo." };
+  const codigoEmpresa = normalizarCodigoEmpresa(String(dados.empresaCodigo ?? ""));
+  if (codigoEmpresa) {
+    const empresa = await getEmpresaAtivaPorCodigo(admin, codigoEmpresa);
+    if (!empresa) {
+      return { error: "O código da empresa não é válido. Confira com a sua empresa ou desmarque a opção de empresa parceira." };
     }
-    empresaParceiraId = dados.empresaParceiraId;
+    empresaParceiraId = empresa.id;
   }
 
   const cpf = formatCPF(dados.cpf);

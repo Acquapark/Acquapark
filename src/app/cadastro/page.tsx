@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { Waves } from "lucide-react";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlanosAutocadastro } from "@/lib/associados/autocadastro";
-import { getEmpresasParceirasAtivas } from "@/lib/supabase/empresas-parceiras";
+import { existeEmpresaParceiraAtiva } from "@/lib/supabase/empresas-parceiras";
 import { camposExigidosPeloContrato } from "@/lib/associados/cadastro";
 import { getTermoVigente } from "@/lib/termos";
 import { AutocadastroClient } from "./AutocadastroClient";
@@ -20,15 +20,16 @@ export default async function CadastroPage() {
   // Página pública, sem sessão: os planos são lidos pelo servidor e só os
   // campos que a página precisa chegam ao navegador.
   const admin = createAdminClient();
-  const [planos, camposContrato, termo, empresas] = await Promise.all([
+  const [planos, camposContrato, termo, temEmpresasParceiras] = await Promise.all([
     getPlanosAutocadastro(admin),
     camposExigidosPeloContrato(admin),
     getTermoVigente(admin),
-    // Só id e nome das empresas ativas chegam ao navegador. Se a lista falhar,
-    // o cadastro continua funcionando, só sem o campo de empresa.
-    getEmpresasParceirasAtivas(admin).catch((err) => {
+    // Nenhum nome de empresa chega ao navegador: a pessoa digita o código e o
+    // servidor diz de qual empresa é. Se a consulta falhar, o cadastro segue
+    // funcionando, só sem a opção de empresa.
+    existeEmpresaParceiraAtiva(admin).catch((err) => {
       console.error("Autocadastro: empresas parceiras indisponíveis:", err);
-      return [];
+      return false;
     }),
   ]);
 
@@ -52,7 +53,7 @@ export default async function CadastroPage() {
       planos={planos}
       camposContrato={camposContrato.map((c) => c.campo)}
       termo={{ id: termo.id, versao: termo.versao, conteudo: termo.conteudo }}
-      empresas={empresas}
+      temEmpresasParceiras={temEmpresasParceiras}
     />
   );
 }

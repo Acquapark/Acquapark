@@ -25,7 +25,8 @@ import {
   SENHA_TAMANHO_MINIMO,
 } from "@/lib/associados/autocadastro-tipos";
 import { comprimirFoto } from "@/lib/foto-associado";
-import { enviarAutocadastro } from "./actions";
+import { enviarAutocadastro, verificarCodigoEmpresa } from "./actions";
+import { CODIGO_EMPRESA_TAMANHO, normalizarCodigoEmpresa } from "@/lib/empresas-codigo";
 
 type Sucesso = Extract<Awaited<ReturnType<typeof enviarAutocadastro>>, { ok: true }>;
 type Etapa = "dados" | "foto" | "plano" | "dependentes" | "senha" | "revisao";
@@ -58,7 +59,7 @@ const emptyDados: AutocadastroDados = {
   bairro: "",
   cidade: "",
   estado: "",
-  empresaParceiraId: "",
+  empresaCodigo: "",
   planoId: "",
   dependentes: [],
   senha: "",
@@ -84,11 +85,11 @@ export function AutocadastroClient({
   planos,
   camposContrato,
   termo,
-  empresas,
+  temEmpresasParceiras,
 }: {
   planos: PlanoAutocadastro[];
-  /** Empresas parceiras ativas (só id e nome). Lista vazia = o campo não aparece. */
-  empresas: { id: string; nome: string }[];
+  /** Há empresa parceira ativa? Sem nenhuma, a opção de código nem aparece. */
+  temEmpresasParceiras: boolean;
   /** Campos que o modelo de contrato padrão usa — obrigatórios para o contrato ser gerado. */
   camposContrato: CampoFormularioContrato[];
   /** Termos de adesão em vigor — o aceite é obrigatório para concluir. */
@@ -106,6 +107,12 @@ export function AutocadastroClient({
   const [enviando, setEnviando] = useState(false);
   const [sucesso, setSucesso] = useState<Sucesso | null>(null);
   const [entrando, setEntrando] = useState(false);
+  // Empresa parceira: a pessoa marca a opção, digita o código e o servidor confirma de qual empresa é.
+  const [souDeEmpresa, setSouDeEmpresa] = useState(false);
+  const [codigoDigitado, setCodigoDigitado] = useState("");
+  const [empresaConfirmada, setEmpresaConfirmada] = useState<string | null>(null);
+  const [conferindoCodigo, setConferindoCodigo] = useState(false);
+  const [erroCodigo, setErroCodigo] = useState("");
   const honeypotRef = useRef<HTMLInputElement>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
@@ -182,8 +189,42 @@ export function AutocadastroClient({
   }
 
   /** Mesmas regras do servidor, só para avisar antes de avançar. */
+  function alternarEmpresa(marcado: boolean) {
+    setSouDeEmpresa(marcado);
+    if (!marcado) {
+      setCodigoDigitado("");
+      setEmpresaConfirmada(null);
+      setErroCodigo("");
+      update({ empresaCodigo: "" });
+    }
+  }
+
+  function digitarCodigo(valor: string) {
+    setCodigoDigitado(normalizarCodigoEmpresa(valor));
+    // Mudou o código: a confirmação anterior não vale mais.
+    setEmpresaConfirmada(null);
+    setErroCodigo("");
+    update({ empresaCodigo: "" });
+  }
+
+  async function conferirCodigo() {
+    setConferindoCodigo(true);
+    setErroCodigo("");
+    const resultado = await verificarCodigoEmpresa(codigoDigitado);
+    setConferindoCodigo(false);
+    if ("error" in resultado) {
+      setErroCodigo(resultado.error);
+      return;
+    }
+    setEmpresaConfirmada(resultado.nome);
+    update({ empresaCodigo: codigoDigitado });
+  }
+
   function validarEtapa(): string | null {
     if (etapa === "dados") {
+      if (souDeEmpresa && !empresaConfirmada) {
+        return "Confirme o código da empresa parceira (botão Confirmar) ou desmarque a opção.";
+      }
       if (dados.nome.trim().split(/\s+/).length < 2) return "Informe seu nome completo.";
       if (!isCPFValido(dados.cpf)) return "CPF inválido.";
       if (!dados.nascimento) return "Informe sua data de nascimento.";
@@ -408,24 +449,55 @@ export function AutocadastroClient({
               />
               <span className="mt-1 block text-[11px] text-gray-400">O contrato para assinatura será enviado para este e-mail.</span>
             </Campo>
-            {empresas.length > 0 && (
-              <Campo label="Empresa parceira">
-                <select
-                  className={inputClass}
-                  value={dados.empresaParceiraId}
-                  onChange={(e) => update({ empresaParceiraId: e.target.value })}
-                >
-                  <option value="">Não sou de empresa parceira</option>
-                  {empresas.map((empresa) => (
-                    <option key={empresa.id} value={empresa.id}>
-                      {empresa.nome}
-                    </option>
-                  ))}
-                </select>
-                <span className="mt-1 block text-[11px] text-gray-400">
-                  Se você está se associando pela empresa onde trabalha, escolha ela aqui.
-                </span>
-              </Campo>
+            {temEmpresasParceiras && (
+              <div className="rounded-[6px] border border-gray-200 p-3">
+                <label className="flex cursor-pointer items-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4"
+                    checked={souDeEmpresa}
+                    onChange={(e) => alternarEmpresa(e.target.checked)}
+                  />
+                  <span className="text-sm text-gray-700">
+                    Sou funcionário de uma empresa parceira
+                    <span className="block text-[11px] text-gray-400">Você precisa do código que a sua empresa recebeu do parque.</span>
+                  </span>
+                </label>
+
+                {souDeEmpresa && (
+                  <div className="mt-3">
+                    <span className="mb-1.5 block text-xs font-medium text-gray-600">
+                      Código da empresa<span className="ml-0.5 text-danger-600">*</span>
+                    </span>
+                    <div className="flex gap-2">
+                      <input
+                        className={cn(inputClass, "font-mono uppercase tracking-widest")}
+                        value={codigoDigitado}
+                        onChange={(e) => digitarCodigo(e.target.value)}
+                        placeholder="Ex: 3F9A1C7B"
+                        maxLength={CODIGO_EMPRESA_TAMANHO + 2}
+                        autoCapitalize="characters"
+                        autoComplete="off"
+                      />
+                      <button
+                        type="button"
+                        onClick={conferirCodigo}
+                        disabled={conferindoCodigo || !!empresaConfirmada || codigoDigitado.length !== CODIGO_EMPRESA_TAMANHO}
+                        className="h-12 shrink-0 rounded-[6px] bg-primary-600 px-4 text-sm font-semibold text-white disabled:bg-gray-300"
+                      >
+                        {conferindoCodigo ? "..." : "Confirmar"}
+                      </button>
+                    </div>
+                    {empresaConfirmada && (
+                      <p className="mt-2 flex items-center gap-1.5 text-sm font-medium text-success-700">
+                        <CheckCircle2 size={16} />
+                        Empresa: {empresaConfirmada}
+                      </p>
+                    )}
+                    {erroCodigo && <p className="mt-2 text-xs text-danger-600">{erroCodigo}</p>}
+                  </div>
+                )}
+              </div>
             )}
 
             <div className="border-t border-gray-100 pt-4">
@@ -687,12 +759,10 @@ export function AutocadastroClient({
                   {dados.endereco}, {dados.numero} — {dados.cidade}/{dados.estado}
                 </dd>
               </div>
-              {dados.empresaParceiraId && (
+              {dados.empresaCodigo && empresaConfirmada && (
                 <div className="flex justify-between gap-3">
                   <dt>Empresa</dt>
-                  <dd className="text-right text-gray-800">
-                    {empresas.find((e) => e.id === dados.empresaParceiraId)?.nome ?? "—"}
-                  </dd>
+                  <dd className="text-right text-gray-800">{empresaConfirmada}</dd>
                 </div>
               )}
               <div className="flex justify-between gap-3">

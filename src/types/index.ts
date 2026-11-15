@@ -115,6 +115,8 @@ export interface Associado {
 export interface EmpresaParceira {
   id: string;
   nome: string;
+  /** Código que o funcionário digita no cadastro pela internet para se vincular à empresa. */
+  codigo: string;
   cnpj: string;
   contatoNome: string;
   telefone: string;

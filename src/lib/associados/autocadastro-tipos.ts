@@ -22,8 +22,8 @@ export interface AutocadastroDados {
   bairro: string;
   cidade: string;
   estado: string;
-  /** Empresa parceira escolhida na lista ("" = não veio por empresa parceira). */
-  empresaParceiraId: string;
+  /** Código da empresa parceira ("" = não veio por empresa parceira). O servidor confere. */
+  empresaCodigo: string;
   planoId: string;
   dependentes: AutocadastroDependente[];
   senha: string;
