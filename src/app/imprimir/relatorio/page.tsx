@@ -4,7 +4,7 @@ import { getEmpresa } from "@/lib/supabase/contratos";
 import { gerarRelatorio } from "@/lib/supabase/relatorios";
 import { hojeBR } from "@/lib/datas-br";
 import { validarPeriodo } from "@/lib/relatorios/periodo";
-import { relatorioIdValido } from "@/lib/relatorios/tipos";
+import { relatorioIdValido, relatorioUsaPeriodo } from "@/lib/relatorios/tipos";
 import { RelatorioPrint } from "./RelatorioPrint";
 
 export default async function ImprimirRelatorioPage({
@@ -19,7 +19,7 @@ export default async function ImprimirRelatorioPage({
   const hoje = hojeBR();
   const inicio = de ?? `${hoje.slice(0, 7)}-01`;
   const fim = ate ?? hoje;
-  if (id !== "associados" && validarPeriodo(inicio, fim)) notFound();
+  if (relatorioUsaPeriodo(id) && validarPeriodo(inicio, fim)) notFound();
 
   const supabase = await createClient();
   const [relatorio, empresa] = await Promise.all([gerarRelatorio(supabase, id, inicio, fim), getEmpresa(supabase)]);

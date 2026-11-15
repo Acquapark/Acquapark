@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Label, Input, Select } from "@/components/ui/Field";
 import { RelatorioConteudo } from "@/components/relatorios/RelatorioConteudo";
-import { RELATORIOS, Relatorio, RelatorioId, formatarCelula, rotuloPeriodo } from "@/lib/relatorios/tipos";
+import { RELATORIOS, Relatorio, RelatorioId, formatarCelula, relatorioUsaPeriodo, rotuloPeriodo } from "@/lib/relatorios/tipos";
 import { baixarCsv, baixarExcel } from "@/lib/relatorios/exportar";
 import { gerarRelatorioAction } from "./actions";
 import { useAcesso } from "@/components/providers/AcessoProvider";
@@ -30,7 +30,7 @@ export function RelatoriosClient({ inicioPadrao, fimPadrao }: { inicioPadrao: st
   const [erro, setErro] = useState("");
 
   const meta = RELATORIOS.find((r) => r.id === selecionado)!;
-  const usaPeriodo = selecionado !== "associados";
+  const usaPeriodo = relatorioUsaPeriodo(selecionado);
 
   function selecionar(id: RelatorioId) {
     setSelecionado(id);

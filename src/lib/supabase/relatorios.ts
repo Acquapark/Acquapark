@@ -413,7 +413,7 @@ async function relAssociados(supabase: SupabaseClient): Promise<Relatorio> {
   const { linhas, truncado } = await buscarTodos<Row>((from, to) =>
     supabase
       .from("associados")
-      .select("id, numero, nome, cpf, telefone, email, status, created_at, planos ( nome )")
+      .select("id, numero, nome, cpf, telefone, email, status, created_at, planos ( nome ), empresas_parceiras ( nome )")
       .order("nome")
       .order("id")
       .range(from, to),
@@ -436,6 +436,7 @@ async function relAssociados(supabase: SupabaseClient): Promise<Relatorio> {
         { key: "nome", label: "Nome" },
         { key: "cpf", label: "CPF" },
         { key: "plano", label: "Plano" },
+        { key: "empresa", label: "Empresa parceira" },
         { key: "status", label: "Status" },
         { key: "telefone", label: "Telefone" },
         { key: "email", label: "E-mail" },
@@ -446,6 +447,7 @@ async function relAssociados(supabase: SupabaseClient): Promise<Relatorio> {
         nome: a.nome as string,
         cpf: a.cpf as string,
         plano: ((a.planos as Row | null)?.nome as string) ?? "—",
+        empresa: ((a.empresas_parceiras as Row | null)?.nome as string) ?? null,
         status: a.status as string,
         telefone: (a.telefone as string) ?? null,
         email: (a.email as string) ?? null,
@@ -454,6 +456,101 @@ async function relAssociados(supabase: SupabaseClient): Promise<Relatorio> {
     },
   ];
   rel.avisos.push("Este relatório mostra a base de associados na data de hoje; o filtro de período não se aplica.");
+  return rel;
+}
+
+const STATUS_ASSOCIADO = ["Ativo", "Pendente", "Inadimplente", "Suspenso", "Inativo"] as const;
+
+async function relEmpresas(supabase: SupabaseClient): Promise<Relatorio> {
+  const rel = cabecalho("empresas", null);
+  const [{ data: empresasRows, error: empresasError }, { linhas, truncado }] = await Promise.all([
+    supabase.from("empresas_parceiras").select("id, nome, ativa").order("nome"),
+    buscarTodos<Row>((from, to) =>
+      supabase
+        .from("associados")
+        .select("id, numero, nome, cpf, telefone, status, created_at, empresa_parceira_id, planos ( nome )")
+        .not("empresa_parceira_id", "is", null)
+        .order("nome")
+        .order("id")
+        .range(from, to),
+    ),
+  ]);
+  if (empresasError) throw empresasError;
+  aviso(truncado, rel.avisos);
+
+  const porEmpresa = new Map<string, Row[]>();
+  for (const a of linhas) {
+    const id = a.empresa_parceira_id as string;
+    porEmpresa.set(id, [...(porEmpresa.get(id) ?? []), a]);
+  }
+
+  const contar = (itens: Row[], status: string) => itens.filter((a) => a.status === status).length;
+  const empresas = ((empresasRows ?? []) as Row[]).map((e) => ({
+    id: e.id as string,
+    nome: e.nome as string,
+    ativa: Boolean(e.ativa),
+    associados: porEmpresa.get(e.id as string) ?? [],
+  }));
+
+  const total = linhas.length;
+  rel.resumo = [
+    { label: "Empresas parceiras ativas", valor: numero(empresas.filter((e) => e.ativa).length) },
+    { label: "Associados vindos de empresas", valor: numero(total) },
+    { label: "Ativos", valor: numero(contar(linhas, "Ativo")) },
+    { label: "Inadimplentes", valor: numero(contar(linhas, "Inadimplente")) },
+  ];
+
+  const resumoPorEmpresa: Secao = {
+    titulo: "Resumo por empresa",
+    colunas: [
+      { key: "empresa", label: "Empresa" },
+      { key: "situacao", label: "Parceria" },
+      { key: "total", label: "Associados", tipo: "numero" },
+      ...STATUS_ASSOCIADO.map((s) => ({ key: s, label: s === "Ativo" ? "Ativos" : `${s}s`, tipo: "numero" as const })),
+    ],
+    linhas: empresas
+      .slice()
+      .sort((a, b) => b.associados.length - a.associados.length || a.nome.localeCompare(b.nome))
+      .map((e) => ({
+        empresa: e.nome,
+        situacao: e.ativa ? "Ativa" : "Inativa",
+        total: e.associados.length,
+        ...Object.fromEntries(STATUS_ASSOCIADO.map((s) => [s, contar(e.associados, s)])),
+      })),
+    totais: {
+      empresa: "Total",
+      total,
+      ...Object.fromEntries(STATUS_ASSOCIADO.map((s) => [s, contar(linhas, s)])),
+    },
+  };
+
+  const detalhes: Secao[] = empresas
+    .filter((e) => e.associados.length > 0)
+    .map((e) => ({
+      titulo: `${e.nome}${e.ativa ? "" : " (inativa)"} — ${numero(e.associados.length)} associado(s)`,
+      colunas: [
+        { key: "numero", label: "Nº" },
+        { key: "nome", label: "Nome" },
+        { key: "cpf", label: "CPF" },
+        { key: "plano", label: "Plano" },
+        { key: "status", label: "Status" },
+        { key: "telefone", label: "Telefone" },
+        { key: "cadastro", label: "Cadastro", tipo: "data" },
+      ],
+      linhas: e.associados.map((a) => ({
+        numero: a.numero as string,
+        nome: a.nome as string,
+        cpf: a.cpf as string,
+        plano: ((a.planos as Row | null)?.nome as string) ?? "—",
+        status: a.status as string,
+        telefone: (a.telefone as string) ?? null,
+        cadastro: dataBR(a.created_at as string),
+      })),
+    }));
+
+  rel.secoes = [resumoPorEmpresa, ...detalhes];
+  if (empresas.length === 0) rel.avisos.push("Nenhuma empresa parceira cadastrada. Cadastre em Empresas Parceiras.");
+  rel.avisos.push("Mostra a posição de hoje; o filtro de período não se aplica. Associados sem empresa parceira não entram.");
   return rel;
 }
 
@@ -545,6 +642,8 @@ export async function gerarRelatorio(
       return relSaidas(supabase, de, ate);
     case "associados":
       return relAssociados(supabase);
+    case "empresas":
+      return relEmpresas(supabase);
     case "inadimplencia":
       return relInadimplencia(supabase, de, ate);
     case "faturamento":

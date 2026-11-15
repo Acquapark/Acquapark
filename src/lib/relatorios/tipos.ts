@@ -33,6 +33,7 @@ export const RELATORIOS = [
   { id: "entradas", nome: "Entradas", descricao: "Total de entradas registradas por dia" },
   { id: "saidas", nome: "Saídas", descricao: "Total de saídas registradas por dia" },
   { id: "associados", nome: "Associados", descricao: "Base de associados ativos, pendentes e inativos" },
+  { id: "empresas", nome: "Associados por empresa parceira", descricao: "Quantos e quais associados vieram de cada empresa" },
   { id: "inadimplencia", nome: "Inadimplência", descricao: "Mensalidades vencidas por associado" },
   { id: "faturamento", nome: "Faturamento", descricao: "Receita consolidada por dia" },
   { id: "utilizacao", nome: "Utilização do parque", descricao: "Frequência e horários de pico" },
@@ -41,6 +42,13 @@ export const RELATORIOS = [
 ] as const;
 
 export type RelatorioId = (typeof RELATORIOS)[number]["id"];
+
+/** Relatórios que mostram a posição de hoje e ignoram o período. */
+const RELATORIOS_SEM_PERIODO: readonly string[] = ["associados", "empresas"];
+
+export function relatorioUsaPeriodo(id: string): boolean {
+  return !RELATORIOS_SEM_PERIODO.includes(id);
+}
 
 export function relatorioIdValido(id: string): id is RelatorioId {
   return RELATORIOS.some((r) => r.id === id);

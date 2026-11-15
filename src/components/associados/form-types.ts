@@ -18,6 +18,8 @@ export interface AssociadoFormState {
   cidade: string;
   estado: string;
   observacoes: string;
+  /** Empresa parceira de onde o associado veio ("" = nenhuma). */
+  empresaParceiraId: string;
 
   // Etapa 2 — Dependentes
   dependentes: Dependente[];
@@ -54,6 +56,7 @@ export const emptyAssociadoForm: AssociadoFormState = {
   cidade: "",
   estado: "",
   observacoes: "",
+  empresaParceiraId: "",
   dependentes: [],
   planoId: "",
   dataInicio: "",

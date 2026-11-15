@@ -17,12 +17,30 @@ import { useAcesso } from "@/components/providers/AcessoProvider";
 
 const PAGE_SIZE = 5;
 
-export function AssociadosClient({ associados, planos }: { associados: Associado[]; planos: Plano[] }) {
+/** Valores especiais do filtro de empresa (os demais são o id da empresa). */
+const EMPRESA_TODAS = "todas";
+const EMPRESA_NENHUMA = "nenhuma";
+
+export function AssociadosClient({
+  associados,
+  planos,
+  empresasFiltro,
+  empresasCadastro,
+  empresaInicial,
+}: {
+  associados: Associado[];
+  planos: Plano[];
+  empresasFiltro: { id: string; nome: string }[];
+  empresasCadastro: { id: string; nome: string }[];
+  /** Vindo de /associados?empresa=<id> (botão "Ver associados" em Empresas Parceiras). */
+  empresaInicial?: string;
+}) {
   const router = useRouter();
   const { pode } = useAcesso();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<AssociadoStatus | "Todos">("Todos");
   const [origemFilter, setOrigemFilter] = useState<Associado["origem"] | "Todas">("Todas");
+  const [empresaFilter, setEmpresaFilter] = useState<string>(empresaInicial ?? EMPRESA_TODAS);
   const [page, setPage] = useState(1);
   const [modalOpen, setModalOpen] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -48,9 +66,12 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
         a.nome.toLowerCase().includes(search.toLowerCase()) || a.cpf.includes(search) || a.numero.includes(search);
       const matchesStatus = statusFilter === "Todos" || a.status === statusFilter;
       const matchesOrigem = origemFilter === "Todas" || a.origem === origemFilter;
-      return matchesSearch && matchesStatus && matchesOrigem;
+      const matchesEmpresa =
+        empresaFilter === EMPRESA_TODAS ||
+        (empresaFilter === EMPRESA_NENHUMA ? !a.empresaParceiraId : a.empresaParceiraId === empresaFilter);
+      return matchesSearch && matchesStatus && matchesOrigem && matchesEmpresa;
     });
-  }, [associados, search, statusFilter, origemFilter]);
+  }, [associados, search, statusFilter, origemFilter, empresaFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
@@ -118,6 +139,22 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
               <option value="equipe">Cadastro pela equipe</option>
               <option value="autocadastro">Cadastro pela internet</option>
             </Select>
+            <Select
+              value={empresaFilter}
+              onChange={(e) => {
+                setEmpresaFilter(e.target.value);
+                setPage(1);
+              }}
+              className="h-8 w-52"
+            >
+              <option value={EMPRESA_TODAS}>Todas as empresas</option>
+              <option value={EMPRESA_NENHUMA}>Sem empresa parceira</option>
+              {empresasFiltro.map((empresa) => (
+                <option key={empresa.id} value={empresa.id}>
+                  {empresa.nome}
+                </option>
+              ))}
+            </Select>
           </div>
 
           <span className="ml-auto text-xs text-gray-400">{filtered.length} resultado(s)</span>
@@ -129,6 +166,7 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
               <Th>Associado</Th>
               <Th>CPF</Th>
               <Th>Plano</Th>
+              <Th>Empresa</Th>
               <Th>Status</Th>
               <Th>Mensalidade</Th>
               <Th>Vencimento</Th>
@@ -137,7 +175,7 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
             </tr>
           </Thead>
           <Tbody>
-            {paginated.length === 0 && <TableEmpty colSpan={8} message="Nenhum associado encontrado." />}
+            {paginated.length === 0 && <TableEmpty colSpan={9} message="Nenhum associado encontrado." />}
             {paginated.map((a) => (
               <Tr key={a.id} onClick={() => router.push(`/associados/${a.id}`)}>
                 <Td>
@@ -156,6 +194,7 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
                 </Td>
                 <Td>{a.cpf}</Td>
                 <Td>{a.plano}</Td>
+                <Td>{a.empresaParceiraNome ?? "—"}</Td>
                 <Td>
                   <StatusBadge status={a.status} map={StatusMaps.associado} />
                 </Td>
@@ -213,7 +252,7 @@ export function AssociadosClient({ associados, planos }: { associados: Associado
         </div>
       </Card>
 
-      <AssociadoModal open={modalOpen} onClose={() => setModalOpen(false)} planos={planos} />
+      <AssociadoModal open={modalOpen} onClose={() => setModalOpen(false)} planos={planos} empresas={empresasCadastro} />
     </div>
   );
 }

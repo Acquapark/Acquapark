@@ -13,10 +13,13 @@ export function StepDadosBasicos({
   disabled = false,
   fotoPreview,
   onFoto,
+  empresas,
 }: {
   form: AssociadoFormState;
   update: (patch: Partial<AssociadoFormState>) => void;
   disabled?: boolean;
+  /** Empresas parceiras que podem ser escolhidas (ativas + a atual do associado, se estiver inativa). */
+  empresas: { id: string; nome: string }[];
   /** Foto atual (URL assinada) ou a recém-escolhida (blob:). */
   fotoPreview?: string | null;
   /** Recebe a foto já reduzida; sem este callback a foto é só exibida. */
@@ -180,6 +183,24 @@ export function StepDadosBasicos({
             placeholder="email@exemplo.com"
             disabled={disabled}
           />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div className="sm:col-span-2">
+          <Label>Empresa parceira</Label>
+          <Select
+            value={form.empresaParceiraId}
+            onChange={(e) => update({ empresaParceiraId: e.target.value })}
+            disabled={disabled}
+          >
+            <option value="">Nenhuma (não veio por empresa parceira)</option>
+            {empresas.map((empresa) => (
+              <option key={empresa.id} value={empresa.id}>
+                {empresa.nome}
+              </option>
+            ))}
+          </Select>
         </div>
       </div>
 

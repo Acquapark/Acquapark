@@ -6,12 +6,13 @@ import { getContratoAtivo } from "@/lib/supabase/contrato-associado";
 import { getAcessoAssociado } from "@/lib/supabase/acesso";
 import { getTermoVigente, getUltimoAceite } from "@/lib/termos";
 import { getSituacaoCortesia } from "@/lib/cortesia";
+import { getEmpresasParceirasAtivas } from "@/lib/supabase/empresas-parceiras";
 import { AssociadoProfileClient } from "./AssociadoProfileClient";
 
 export default async function AssociadoProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
-  const [result, planos, contratosGerados, modelosAtivos, contratoAtivo, acesso, termoVigente, ultimoAceite, cortesia] = await Promise.all([
+  const [result, planos, contratosGerados, modelosAtivos, contratoAtivo, acesso, termoVigente, ultimoAceite, cortesia, empresasAtivas] = await Promise.all([
     getAssociadoById(supabase, id),
     getPlanos(supabase),
     getContratosGeradosDoAssociado(supabase, id),
@@ -21,9 +22,17 @@ export default async function AssociadoProfilePage({ params }: { params: Promise
     getTermoVigente(supabase),
     getUltimoAceite(supabase, id),
     getSituacaoCortesia(supabase, id),
+    getEmpresasParceirasAtivas(supabase),
   ]);
 
   if (!result) notFound();
+
+  // Empresa atual inativa continua na lista, para não sumir da tela de edição.
+  const { empresaParceiraId, empresaParceiraNome } = result.associado;
+  const empresas =
+    empresaParceiraId && empresaParceiraNome && !empresasAtivas.some((e) => e.id === empresaParceiraId)
+      ? [...empresasAtivas, { id: empresaParceiraId, nome: `${empresaParceiraNome} (inativa)` }]
+      : empresasAtivas;
 
   // A foto fica em bucket privado: gera uma URL temporária só para esta visualização.
   let fotoUrl: string | undefined;
@@ -45,6 +54,7 @@ export default async function AssociadoProfilePage({ params }: { params: Promise
       acesso={acesso}
       termos={{ versaoVigente: termoVigente?.versao ?? null, ultimoAceite }}
       cortesia={cortesia}
+      empresas={empresas}
     />
   );
 }

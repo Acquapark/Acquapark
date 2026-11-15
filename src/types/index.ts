@@ -85,9 +85,12 @@ export interface Associado {
   nascimento?: string;
   email: string;
   telefone: string;
+  sexo?: string;
+  whatsapp?: string;
   cep?: string;
   endereco?: string;
   numeroEndereco?: string;
+  complemento?: string;
   bairro?: string;
   cidade?: string;
   estado?: string;
@@ -97,11 +100,29 @@ export interface Associado {
   vencimento: string;
   ultimoAcesso: string;
   fotoUrl?: string;
+  observacoes?: string;
   /** Quem fez o cadastro: a equipe no painel ou o próprio associado pela internet. */
   origem: "equipe" | "autocadastro";
+  /** Empresa parceira de onde o associado veio (opcional). */
+  empresaParceiraId: string | null;
+  empresaParceiraNome: string | null;
   dependentes: Dependente[];
   mensalidades: Mensalidade[];
   acessos: AcessoRegistro[];
+}
+
+/** Empresa com parceria com o parque, que indica funcionários para se associarem. */
+export interface EmpresaParceira {
+  id: string;
+  nome: string;
+  cnpj: string;
+  contatoNome: string;
+  telefone: string;
+  email: string;
+  observacoes: string;
+  ativa: boolean;
+  /** Quantos associados estão vinculados a ela. */
+  totalAssociados: number;
 }
 
 export type RegraReentrada = "unica" | "reentrada" | "ilimitado";

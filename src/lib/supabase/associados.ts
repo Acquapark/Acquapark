@@ -63,9 +63,18 @@ function mapAcesso(row: Row): AcessoRegistro {
   };
 }
 
+function empresaParceira(row: Row): Pick<Associado, "empresaParceiraId" | "empresaParceiraNome"> {
+  const empresa = row.empresas_parceiras as Row | null;
+  return {
+    empresaParceiraId: (row.empresa_parceira_id as string) ?? null,
+    empresaParceiraNome: (empresa?.nome as string) ?? null,
+  };
+}
+
 const LIST_SELECT = `
-  id, numero, nome, cpf, email, telefone, status, origem,
+  id, numero, nome, cpf, email, telefone, status, origem, empresa_parceira_id,
   planos ( nome, valor ),
+  empresas_parceiras ( nome ),
   mensalidades ( vencimento, valor, status ),
   credenciais ( acessos ( registrado_em ) )
 `;
@@ -106,6 +115,7 @@ export async function getAssociados(supabase: SupabaseClient): Promise<Associado
           })
         : "—",
       origem: row.origem === "autocadastro" ? "autocadastro" : "equipe",
+      ...empresaParceira(row),
       dependentes: [],
       mensalidades: [],
       acessos: [],
@@ -115,6 +125,7 @@ export async function getAssociados(supabase: SupabaseClient): Promise<Associado
 
 const DETAIL_SELECT = `
   *,
+  empresas_parceiras ( nome ),
   planos ( id, nome, valor, dependentes_permitidos, beneficios, quantidade_mensalidades, dia_vencimento, regra_primeira_parcela, vencimento_na_contratacao ),
   dependentes ( id, nome, cpf, parentesco, nascimento, ativo ),
   mensalidades ( id, contrato_id, numero_parcela, total_parcelas, vencimento, valor, status, forma_pagamento, pago_em, gateway_charge_id, asaas_status, asaas_sync_error, pagamentos ( forma_pagamento, pago_em ) ),
@@ -154,9 +165,13 @@ export async function getAssociadoById(
       nascimento: (row.nascimento as string) ?? "",
       email: (row.email as string) ?? "",
       telefone: (row.telefone as string) ?? "",
+      sexo: (row.sexo as string) ?? "",
+      whatsapp: (row.whatsapp as string) ?? "",
       cep: (row.cep as string) ?? "",
       endereco: (row.endereco as string) ?? "",
       numeroEndereco: (row.numero_endereco as string) ?? "",
+      complemento: (row.complemento as string) ?? "",
+      observacoes: (row.observacoes as string) ?? "",
       bairro: (row.bairro as string) ?? "",
       cidade: (row.cidade as string) ?? "",
       estado: (row.estado as string) ?? "",
@@ -166,6 +181,7 @@ export async function getAssociadoById(
       vencimento: pendente ? pendente.vencimento : "",
       ultimoAcesso: acessos[0] ? `${acessos[0].data} ${acessos[0].horario}` : "—",
       origem: row.origem === "autocadastro" ? "autocadastro" : "equipe",
+      ...empresaParceira(row),
       // Caminho no bucket privado `associados-fotos` — quem exibe gera a URL assinada.
       fotoUrl: (row.foto_url as string) ?? undefined,
       dependentes,

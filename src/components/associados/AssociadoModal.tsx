@@ -19,10 +19,12 @@ export function AssociadoModal({
   open,
   onClose,
   planos,
+  empresas,
 }: {
   open: boolean;
   onClose: () => void;
   planos: Plano[];
+  empresas: { id: string; nome: string }[];
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
@@ -120,7 +122,7 @@ export function AssociadoModal({
       <ModalSteps steps={STEPS} activeIndex={step} onStepClick={setStep} />
 
       <ModalBody>
-        {step === 0 && <StepDadosBasicos form={form} update={update} fotoPreview={foto?.preview} onFoto={handleFoto} />}
+        {step === 0 && <StepDadosBasicos form={form} update={update} fotoPreview={foto?.preview} onFoto={handleFoto} empresas={empresas} />}
         {step === 1 && <StepPlano form={form} update={update} planos={planos} />}
         {step === 2 && <StepDependentes form={form} update={update} planos={planos} />}
         {step === 3 && <StepContrato form={form} update={update} planos={planos} />}

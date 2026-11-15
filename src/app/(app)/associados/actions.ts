@@ -65,6 +65,7 @@ export async function createAssociado(form: AssociadoFormState) {
       cidade: form.cidade || null,
       estado: form.estado || null,
       observacoes: form.observacoes || null,
+      empresa_parceira_id: form.empresaParceiraId || null,
       plano_id: form.planoId || null,
       // Com plano vinculado, o associado só vira "Ativo" quando a 1ª parcela
       // for paga (ver `ativarAssociadoSeParcela1Paga`) — sem plano não há
@@ -200,6 +201,7 @@ export async function updateAssociado(id: string, form: AssociadoFormState) {
       cidade: form.cidade || null,
       estado: form.estado || null,
       observacoes: form.observacoes || null,
+      empresa_parceira_id: form.empresaParceiraId || null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

@@ -46,6 +46,7 @@ const RELATORIOS_PERMISSAO = [
   { chave: "relatorio_entradas", rotulo: "Entradas" },
   { chave: "relatorio_saidas", rotulo: "Saídas" },
   { chave: "relatorio_associados", rotulo: "Associados" },
+  { chave: "relatorio_empresas", rotulo: "Associados por empresa parceira" },
   { chave: "relatorio_inadimplencia", rotulo: "Inadimplência" },
   { chave: "relatorio_faturamento", rotulo: "Faturamento" },
   { chave: "relatorio_utilizacao", rotulo: "Utilização do parque" },
@@ -138,6 +139,12 @@ export const MODULOS: ModuloDef[] = [
         rotulo: "Cortesia mensal",
         descricao: "1 ingresso de cortesia por mês para associados ativos com plano.",
         acoes: [{ chave: "resgatar", rotulo: "Resgatar / cancelar cortesia" }],
+      },
+      {
+        chave: "empresas_parceiras",
+        rotulo: "Empresas parceiras",
+        descricao: "Cadastro das empresas parceiras que indicam funcionários para se associarem.",
+        acoes: [A.visualizar, A.criar, A.editar, A.excluir],
       },
     ],
   },
@@ -394,6 +401,7 @@ export const FINANCEIRO_VISUALIZAR = [
 export const ROTAS: { prefixo: string; qualquer: readonly string[] }[] = [
   { prefixo: "/dashboard", qualquer: ["dashboard.visualizar"] },
   { prefixo: "/associados", qualquer: ["associados.visualizar"] },
+  { prefixo: "/empresas", qualquer: ["empresas_parceiras.visualizar"] },
   { prefixo: "/bilheteria", qualquer: ["ingressos.visualizar"] },
   { prefixo: "/caixa", qualquer: ["caixa.visualizar"] },
   { prefixo: "/controle-acesso", qualquer: ["controle_acesso.visualizar"] },
@@ -411,7 +419,7 @@ export function regraDaRota(pathname: string) {
 
 /** Primeira área do menu que o usuário pode abrir (destino após login / acesso negado). */
 export function rotaInicial(acesso: Pick<AcessoUsuario, "acessoTotal" | "permissoes"> | null): string | null {
-  const menu = ["/dashboard", "/associados", "/bilheteria", "/caixa", "/controle-acesso", "/financeiro", "/contratos", "/relatorios", "/configuracoes"];
+  const menu = ["/dashboard", "/associados", "/empresas", "/bilheteria", "/caixa", "/controle-acesso", "/financeiro", "/contratos", "/relatorios", "/configuracoes"];
   for (const prefixo of menu) {
     const regra = ROTAS.find((r) => r.prefixo === prefixo);
     if (regra && temAlgumaPermissao(acesso, regra.qualquer)) return prefixo;

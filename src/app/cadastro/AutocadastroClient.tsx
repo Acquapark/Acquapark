@@ -58,6 +58,7 @@ const emptyDados: AutocadastroDados = {
   bairro: "",
   cidade: "",
   estado: "",
+  empresaParceiraId: "",
   planoId: "",
   dependentes: [],
   senha: "",
@@ -83,8 +84,11 @@ export function AutocadastroClient({
   planos,
   camposContrato,
   termo,
+  empresas,
 }: {
   planos: PlanoAutocadastro[];
+  /** Empresas parceiras ativas (só id e nome). Lista vazia = o campo não aparece. */
+  empresas: { id: string; nome: string }[];
   /** Campos que o modelo de contrato padrão usa — obrigatórios para o contrato ser gerado. */
   camposContrato: CampoFormularioContrato[];
   /** Termos de adesão em vigor — o aceite é obrigatório para concluir. */
@@ -404,6 +408,25 @@ export function AutocadastroClient({
               />
               <span className="mt-1 block text-[11px] text-gray-400">O contrato para assinatura será enviado para este e-mail.</span>
             </Campo>
+            {empresas.length > 0 && (
+              <Campo label="Empresa parceira">
+                <select
+                  className={inputClass}
+                  value={dados.empresaParceiraId}
+                  onChange={(e) => update({ empresaParceiraId: e.target.value })}
+                >
+                  <option value="">Não sou de empresa parceira</option>
+                  {empresas.map((empresa) => (
+                    <option key={empresa.id} value={empresa.id}>
+                      {empresa.nome}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 block text-[11px] text-gray-400">
+                  Se você está se associando pela empresa onde trabalha, escolha ela aqui.
+                </span>
+              </Campo>
+            )}
 
             <div className="border-t border-gray-100 pt-4">
               <Campo label="CEP" required>
@@ -664,6 +687,14 @@ export function AutocadastroClient({
                   {dados.endereco}, {dados.numero} — {dados.cidade}/{dados.estado}
                 </dd>
               </div>
+              {dados.empresaParceiraId && (
+                <div className="flex justify-between gap-3">
+                  <dt>Empresa</dt>
+                  <dd className="text-right text-gray-800">
+                    {empresas.find((e) => e.id === dados.empresaParceiraId)?.nome ?? "—"}
+                  </dd>
+                </div>
+              )}
               <div className="flex justify-between gap-3">
                 <dt>Plano</dt>
                 <dd className="text-right text-gray-800">

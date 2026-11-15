@@ -68,6 +68,12 @@ function buildForm(associado: Associado, planoId: string | null): AssociadoFormS
     nascimento: associado.nascimento ?? "",
     email: associado.email,
     telefone: associado.telefone,
+    // Sem estes quatro, salvar a edição gravava os campos vazios e apagava o que já existia.
+    sexo: associado.sexo ?? "",
+    whatsapp: associado.whatsapp ?? "",
+    complemento: associado.complemento ?? "",
+    observacoes: associado.observacoes ?? "",
+    empresaParceiraId: associado.empresaParceiraId ?? "",
     cep: associado.cep ?? "",
     endereco: associado.endereco ?? "",
     numero: associado.numeroEndereco ?? "",
@@ -110,7 +116,10 @@ export function AssociadoProfileClient({
   contratoAtivo,
   termos,
   cortesia,
+  empresas,
 }: {
+  /** Empresas parceiras para escolher na edição (ativas + a atual, se estiver inativa). */
+  empresas: { id: string; nome: string }[];
   associado: Associado;
   planoId: string | null;
   credencialCodigo: string | null;
@@ -262,6 +271,11 @@ export function AssociadoProfileClient({
                 <h1 className="text-base font-semibold text-gray-900">{associado.nome}</h1>
                 <StatusBadge status={associado.status} map={StatusMaps.associado} />
                 {associado.origem === "autocadastro" && <Badge tone="info" dot={false}>Cadastro pela internet</Badge>}
+                {associado.empresaParceiraNome && (
+                  <Badge tone="neutral" dot={false}>
+                    Empresa: {associado.empresaParceiraNome}
+                  </Badge>
+                )}
               </div>
               <p className="mt-0.5 text-xs text-gray-500">
                 Nº {associado.numero} · Plano {associado.plano} · Situação financeira:{" "}
@@ -372,6 +386,7 @@ export function AssociadoProfileClient({
               form={form}
               update={update}
               disabled={!editMode}
+              empresas={empresas}
               fotoPreview={novaFoto?.preview ?? associado.fotoUrl}
               onFoto={(blob, preview) => {
                 descartarNovaFoto();

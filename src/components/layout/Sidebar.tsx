@@ -25,6 +25,7 @@ import {
   Globe,
   PanelLeftClose,
   PanelLeftOpen,
+  Handshake,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAcesso } from "@/components/providers/AcessoProvider";
@@ -33,6 +34,7 @@ import { ROTAS, SECOES_CONFIGURACOES } from "@/lib/permissoes";
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/associados", label: "Associados", icon: Users },
+  { href: "/empresas", label: "Empresas Parceiras", icon: Handshake },
   { href: "/bilheteria", label: "Bilheteria", icon: Ticket },
   { href: "/caixa", label: "Caixa", icon: Banknote },
   { href: "/controle-acesso", label: "Controle de Acesso", icon: ScanLine },

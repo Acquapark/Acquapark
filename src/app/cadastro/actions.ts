@@ -15,6 +15,7 @@ import {
   validarFoto,
 } from "@/lib/associados/cadastro";
 import { getPlanosAutocadastro } from "@/lib/associados/autocadastro";
+import { getEmpresasParceirasAtivas } from "@/lib/supabase/empresas-parceiras";
 import { getContratoAutomatico, getTermoVigente, registrarAceite } from "@/lib/termos";
 import { AutocadastroDados, SENHA_TAMANHO_MINIMO } from "@/lib/associados/autocadastro-tipos";
 
@@ -147,6 +148,16 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     };
   }
 
+  // Empresa parceira: opcional, mas se veio tem que ser uma das ativas (a página pública não é confiável).
+  let empresaParceiraId: string | null = null;
+  if (dados.empresaParceiraId) {
+    const empresas = await getEmpresasParceirasAtivas(admin);
+    if (!empresas.some((e) => e.id === dados.empresaParceiraId)) {
+      return { error: "A empresa escolhida não está mais disponível. Recarregue a página e escolha de novo." };
+    }
+    empresaParceiraId = dados.empresaParceiraId;
+  }
+
   const cpf = formatCPF(dados.cpf);
   const email = dados.email.trim().toLowerCase();
 
@@ -187,6 +198,7 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
       cidade: dados.cidade.trim(),
       estado: dados.estado.trim().toUpperCase(),
       plano_id: plano.id,
+      empresa_parceira_id: empresaParceiraId,
       foto_url: caminhoFoto,
       origem: "autocadastro",
       status: "Pendente",
