@@ -81,6 +81,37 @@ async function asaasFetch<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 /**
+ * Desliga o aviso "Cobrança criada" (evento PAYMENT_CREATED) do cliente.
+ *
+ * O cadastro cria de uma vez as cobranças de todas as mensalidades do plano, e
+ * o Asaas manda um SMS/e-mail para cada cobrança criada — o associado recebia
+ * uma enxurrada de mensagens no dia do cadastro. Os demais avisos padrão do
+ * Asaas continuam ligados (10 dias antes e no dia do vencimento, pagamento
+ * recebido, cobrança vencida), então cada parcela ainda é lembrada perto do
+ * vencimento.
+ *
+ * Nunca lança: se falhar, a cobrança é criada mesmo assim (só com o aviso).
+ */
+async function desligarAvisoCobrancaCriada(customerId: string) {
+  try {
+    const notificacoes = await asaasFetch<{ data: { id: string; event: string; enabled: boolean }[] }>(
+      `/customers/${customerId}/notifications`,
+    );
+    const ligadas = (notificacoes.data ?? []).filter((n) => n.event === "PAYMENT_CREATED" && n.enabled);
+    if (ligadas.length === 0) return;
+    await asaasFetch("/notifications/batch", {
+      method: "PUT",
+      body: JSON.stringify({
+        customer: customerId,
+        notifications: ligadas.map((n) => ({ id: n.id, enabled: false })),
+      }),
+    });
+  } catch (err) {
+    console.error(`Asaas: não foi possível desligar o aviso "Cobrança criada" do cliente ${customerId}:`, err);
+  }
+}
+
+/**
  * Reaproveita o cliente já criado no Asaas para este associado; cria e cacheia
  * na primeira cobrança. Só reaproveita se foi criado no MESMO ambiente da
  * chave atual — um id de cliente do sandbox não existe do lado da produção
@@ -110,6 +141,8 @@ async function obterOuCriarCliente(pagador: Pagador, apiKey: string): Promise<st
       externalReference: pagador.associadoId,
     }),
   });
+  // Antes de qualquer cobrança deste cliente, para nenhuma disparar o aviso.
+  await desligarAvisoCobrancaCriada(cliente.id);
 
   await admin.from("associados").update({ asaas_customer_id: cliente.id, asaas_customer_env: env }).eq("id", pagador.associadoId);
   return cliente.id;
