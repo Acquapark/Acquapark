@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 import {
   cn,
   formatCEP,
+  formatCNPJ,
   formatCPF,
   formatCurrency,
   formatDate,
@@ -250,7 +251,7 @@ export function AutocadastroClient({
   function validarEtapa(): string | null {
     if (etapa === "dados") {
       if (souDeEmpresa && !empresaConfirmada) {
-        return "Confirme o código da empresa parceira (botão Confirmar) ou desmarque a opção.";
+        return "Confirme o CNPJ da empresa parceira (botão Confirmar) ou desmarque a opção.";
       }
       if (dados.nome.trim().split(/\s+/).length < 2) return "Informe seu nome completo.";
       if (!isCPFValido(dados.cpf)) return "CPF inválido.";
@@ -499,23 +500,23 @@ export function AutocadastroClient({
                   />
                   <span className="text-sm text-gray-700">
                     Sou funcionário de uma empresa parceira
-                    <span className="block text-[11px] text-gray-400">Você precisa do código que a sua empresa recebeu do parque.</span>
+                    <span className="block text-[11px] text-gray-400">Você vai precisar do CNPJ da sua empresa.</span>
                   </span>
                 </label>
 
                 {souDeEmpresa && (
                   <div className="mt-3">
                     <span className="mb-1.5 block text-xs font-medium text-gray-600">
-                      Código da empresa<span className="ml-0.5 text-danger-600">*</span>
+                      CNPJ da empresa<span className="ml-0.5 text-danger-600">*</span>
                     </span>
                     <div className="flex gap-2">
                       <input
-                        className={cn(inputClass, "font-mono uppercase tracking-widest")}
-                        value={codigoDigitado}
+                        className={cn(inputClass, "font-mono")}
+                        value={formatCNPJ(codigoDigitado)}
                         onChange={(e) => digitarCodigo(e.target.value)}
-                        placeholder="Ex: 3F9A1C7B"
-                        maxLength={CODIGO_EMPRESA_TAMANHO + 2}
-                        autoCapitalize="characters"
+                        placeholder="00.000.000/0000-00"
+                        maxLength={18}
+                        inputMode="numeric"
                         autoComplete="off"
                       />
                       <button

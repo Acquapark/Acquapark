@@ -13,7 +13,7 @@ import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Tab
 import { EmpresaParceiraModal } from "@/components/empresas/EmpresaParceiraModal";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 import { EmpresaParceira } from "@/types";
-import { deleteEmpresaParceira, gerarNovoCodigoEmpresa } from "./actions";
+import { deleteEmpresaParceira } from "./actions";
 
 type FiltroSituacao = "todas" | "ativas" | "inativas";
 
@@ -25,8 +25,6 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
   const [modal, setModal] = useState<{ empresa: EmpresaParceira | null } | null>(null);
   const [confirmarExclusao, setConfirmarExclusao] = useState<EmpresaParceira | null>(null);
   const [excluindo, setExcluindo] = useState(false);
-  const [confirmarNovoCodigo, setConfirmarNovoCodigo] = useState<EmpresaParceira | null>(null);
-  const [gerandoCodigo, setGerandoCodigo] = useState(false);
   const [copiado, setCopiado] = useState<string | null>(null);
   const [mensagem, setMensagem] = useState<{ tom: "erro" | "ok"; texto: string } | null>(null);
 
@@ -60,30 +58,13 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
     router.refresh();
   }
 
-  async function novoCodigo(empresa: EmpresaParceira) {
-    setGerandoCodigo(true);
-    setMensagem(null);
-    const resultado = await gerarNovoCodigoEmpresa(empresa.id);
-    setGerandoCodigo(false);
-    setConfirmarNovoCodigo(null);
-    if ("error" in resultado) {
-      setMensagem({ tom: "erro", texto: resultado.error });
-      return;
-    }
-    setMensagem({
-      tom: "ok",
-      texto: `Novo código de "${empresa.nome}": ${resultado.codigo}. O código antigo não vale mais — envie o novo para a empresa.`,
-    });
-    router.refresh();
-  }
-
-  async function copiarCodigo(empresa: EmpresaParceira) {
+  async function copiarCnpj(empresa: EmpresaParceira) {
     try {
-      await navigator.clipboard.writeText(empresa.codigo);
+      await navigator.clipboard.writeText(empresa.cnpj);
       setCopiado(empresa.id);
       setTimeout(() => setCopiado((atual) => (atual === empresa.id ? null : atual)), 2000);
     } catch {
-      setMensagem({ tom: "erro", texto: `Não foi possível copiar. O código é ${empresa.codigo}.` });
+      setMensagem({ tom: "erro", texto: `Não foi possível copiar. O CNPJ é ${empresa.cnpj}.` });
     }
   }
 
@@ -94,7 +75,6 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
     }
     if (pode("empresas_parceiras.editar")) {
       itens.push({ label: "Editar", onClick: () => setModal({ empresa }) });
-      itens.push({ label: "Gerar novo código", onClick: () => setConfirmarNovoCodigo(empresa) });
     }
     if (pode("empresas_parceiras.excluir")) {
       itens.push({ label: "Excluir", destructive: true, onClick: () => setConfirmarExclusao(empresa) });
@@ -106,7 +86,7 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
     <div>
       <PageHeader
         title="Empresas Parceiras"
-        subtitle={`${empresas.length} empresa(s) · ${totalAssociados} associado(s) vinculado(s) · passe o código só para a empresa: o funcionário digita no cadastro pela internet`}
+        subtitle={`${empresas.length} empresa(s) · ${totalAssociados} associado(s) vinculado(s) · o funcionário digita o CNPJ da empresa no cadastro pela internet`}
         action={
           pode("empresas_parceiras.criar") ? (
             <Button onClick={() => setModal({ empresa: null })}>
@@ -145,23 +125,6 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
         </div>
       )}
 
-      {confirmarNovoCodigo && (
-        <div className="mb-4 flex flex-wrap items-center gap-3 rounded-[4px] border border-warning-600/30 bg-warning-50 px-3 py-2 text-xs text-warning-700">
-          <span>
-            Gerar um novo código para <strong>{confirmarNovoCodigo.nome}</strong>? O código atual (
-            <strong>{confirmarNovoCodigo.codigo}</strong>) para de funcionar na hora. Quem já se associou continua vinculado.
-          </span>
-          <div className="ml-auto flex gap-2">
-            <Button size="sm" variant="secondary" onClick={() => setConfirmarNovoCodigo(null)} disabled={gerandoCodigo}>
-              Não
-            </Button>
-            <Button size="sm" onClick={() => novoCodigo(confirmarNovoCodigo)} disabled={gerandoCodigo}>
-              {gerandoCodigo ? "Gerando..." : "Sim, gerar novo"}
-            </Button>
-          </div>
-        </div>
-      )}
-
       <Card>
         <div className="flex flex-wrap items-center gap-3 border-b border-gray-200 px-4 py-3">
           <div className="relative w-72 max-w-full">
@@ -185,8 +148,7 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
           <Thead>
             <tr>
               <Th>Empresa</Th>
-              <Th>Código</Th>
-              <Th>CNPJ</Th>
+              <Th>CNPJ (código)</Th>
               <Th>Contato</Th>
               <Th>Associados</Th>
               <Th>Situação</Th>
@@ -196,7 +158,7 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
           <Tbody>
             {filtradas.length === 0 && (
               <TableEmpty
-                colSpan={7}
+                colSpan={6}
                 message={empresas.length === 0 ? "Nenhuma empresa parceira cadastrada ainda." : "Nenhuma empresa encontrada."}
               />
             )}
@@ -209,18 +171,27 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
                     {e.observacoes && <p className="max-w-xs truncate text-xs text-gray-500">{e.observacoes}</p>}
                   </Td>
                   <Td>
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-mono text-sm font-semibold tracking-wider text-gray-800">{e.codigo}</span>
-                      <button
-                        onClick={() => copiarCodigo(e)}
-                        title="Copiar código"
-                        className="flex h-6 w-6 items-center justify-center rounded-[4px] text-gray-400 hover:bg-gray-100 hover:text-gray-700"
-                      >
-                        {copiado === e.id ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
-                      </button>
-                    </div>
+                    {e.cnpj ? (
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-sm font-semibold text-gray-800">{e.cnpj}</span>
+                        <button
+                          onClick={() => copiarCnpj(e)}
+                          title="Copiar CNPJ"
+                          className="flex h-6 w-6 items-center justify-center rounded-[4px] text-gray-400 hover:bg-gray-100 hover:text-gray-700"
+                        >
+                          {copiado === e.id ? <Check size={13} className="text-success-600" /> : <Copy size={13} />}
+                        </button>
+                      </div>
+                    ) : (
+                      // Empresa antiga sem CNPJ: continua com o código aleatório até alguém editar e preencher o CNPJ.
+                      <div className="text-xs">
+                        <p className="font-medium text-warning-700">Sem CNPJ: edite e preencha</p>
+                        <p className="text-gray-500">
+                          Código antigo: <span className="font-mono">{e.codigo}</span>
+                        </p>
+                      </div>
+                    )}
                   </Td>
-                  <Td>{e.cnpj || "—"}</Td>
                   <Td>
                     {e.contatoNome || e.telefone || e.email ? (
                       <div className="text-xs">

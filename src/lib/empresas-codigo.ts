@@ -1,24 +1,19 @@
 /**
- * Código de validação da empresa parceira: 8 caracteres de 0-9 e A-F (não tem
- * O, I nem L, que se confundem com 0 e 1). Mesmo formato gerado pelo script
- * supabase/empresas_parceiras_codigo.sql para as empresas que já existiam.
+ * Código de validação da empresa parceira: o próprio CNPJ dela, só os 14
+ * números. O funcionário pode digitar com ou sem pontos, barra e traço.
+ * Mesmo formato gravado pelo script supabase/empresas_parceiras_codigo_cnpj.sql
+ * para as empresas que já existiam.
  *
  * Módulo puro: a normalização também roda no navegador.
  */
-export const CODIGO_EMPRESA_TAMANHO = 8;
+export const CODIGO_EMPRESA_TAMANHO = 14;
 
-/** Maiúsculas e só letras/números — aceita o que a pessoa digitar com espaço ou traço. */
+/** Só os números — aceita o CNPJ digitado com ou sem pontuação. */
 export function normalizarCodigoEmpresa(valor: string): string {
-  return valor
-    .toUpperCase()
-    .replace(/[^0-9A-Z]/g, "")
-    .slice(0, CODIGO_EMPRESA_TAMANHO);
+  return valor.replace(/\D/g, "").slice(0, CODIGO_EMPRESA_TAMANHO);
 }
 
-export function gerarCodigoEmpresa(): string {
-  const bytes = new Uint8Array(CODIGO_EMPRESA_TAMANHO / 2);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0"))
-    .join("")
-    .toUpperCase();
+/** Código gravado para a empresa a partir do CNPJ do cadastro dela. */
+export function codigoDoCnpj(cnpj: string): string {
+  return normalizarCodigoEmpresa(cnpj);
 }

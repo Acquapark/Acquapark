@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { exigirPermissao } from "@/lib/auth/acesso-atual";
-import { gerarCodigoEmpresa } from "@/lib/empresas-codigo";
+import { CODIGO_EMPRESA_TAMANHO, codigoDoCnpj } from "@/lib/empresas-codigo";
 
 export interface EmpresaParceiraInput {
   nome: string;
@@ -17,8 +17,10 @@ export interface EmpresaParceiraInput {
 
 function validar(input: EmpresaParceiraInput): string | null {
   if (!input.nome.trim()) return "Informe o nome da empresa.";
-  const cnpj = input.cnpj.replace(/\D/g, "");
-  if (cnpj && cnpj.length !== 14) return "CNPJ incompleto. Preencha os 14 números ou deixe em branco.";
+  // O CNPJ é o código que o funcionário digita no cadastro — por isso é obrigatório.
+  const cnpj = codigoDoCnpj(input.cnpj);
+  if (!cnpj) return "Informe o CNPJ da empresa. Ele é o código que o funcionário digita no cadastro.";
+  if (cnpj.length !== CODIGO_EMPRESA_TAMANHO) return "CNPJ incompleto. Preencha os 14 números.";
   if (input.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email.trim())) return "E-mail inválido.";
   return null;
 }
@@ -26,7 +28,8 @@ function validar(input: EmpresaParceiraInput): string | null {
 function colunas(input: EmpresaParceiraInput) {
   return {
     nome: input.nome.trim(),
-    cnpj: input.cnpj.trim() || null,
+    cnpj: input.cnpj.trim(),
+    codigo: codigoDoCnpj(input.cnpj),
     contato_nome: input.contatoNome.trim() || null,
     telefone: input.telefone.trim() || null,
     email: input.email.trim().toLowerCase() || null,
@@ -37,9 +40,9 @@ function colunas(input: EmpresaParceiraInput) {
 
 function mensagemDeErro(error: { code?: string; message: string }) {
   if (error.code === "23505") {
-    // Código repetido é raríssimo (8 caracteres aleatórios): basta tentar de novo.
+    // O código é o CNPJ: código repetido quer dizer CNPJ já cadastrado.
     return error.message.includes("codigo")
-      ? "Não foi possível gerar um código único. Tente de novo."
+      ? "Já existe uma empresa parceira com esse CNPJ."
       : "Já existe uma empresa parceira com esse nome.";
   }
   return error.message;
@@ -57,30 +60,10 @@ export async function createEmpresaParceira(input: EmpresaParceiraInput) {
   if (invalido) return { error: invalido };
 
   const supabase = await createClient();
-  const { error } = await supabase.from("empresas_parceiras").insert({ ...colunas(input), codigo: gerarCodigoEmpresa() });
+  const { error } = await supabase.from("empresas_parceiras").insert(colunas(input));
   if (error) return { error: mensagemDeErro(error) };
   revalidar();
   return { success: true };
-}
-
-/**
- * Troca o código da empresa — usado quando o código vazou para quem não é
- * funcionário. O antigo para de valer na hora; quem já se vinculou continua
- * vinculado.
- */
-export async function gerarNovoCodigoEmpresa(id: string): Promise<{ error: string } | { codigo: string }> {
-  const negado = await exigirPermissao("empresas_parceiras.editar");
-  if (negado) return { error: negado.error };
-
-  const supabase = await createClient();
-  const codigo = gerarCodigoEmpresa();
-  const { error } = await supabase
-    .from("empresas_parceiras")
-    .update({ codigo, updated_at: new Date().toISOString() })
-    .eq("id", id);
-  if (error) return { error: mensagemDeErro(error) };
-  revalidar();
-  return { codigo };
 }
 
 export async function updateEmpresaParceira(id: string, input: EmpresaParceiraInput) {

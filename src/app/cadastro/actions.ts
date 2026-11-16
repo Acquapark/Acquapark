@@ -94,7 +94,7 @@ async function ipDaRequisicao(): Promise<string> {
 export async function verificarCodigoEmpresa(codigo: string): Promise<{ error: string } | { nome: string }> {
   const normalizado = normalizarCodigoEmpresa(String(codigo ?? ""));
   if (normalizado.length !== CODIGO_EMPRESA_TAMANHO) {
-    return { error: `O código da empresa tem ${CODIGO_EMPRESA_TAMANHO} caracteres.` };
+    return { error: `O CNPJ da empresa tem ${CODIGO_EMPRESA_TAMANHO} números.` };
   }
 
   const admin = createAdminClient();
@@ -107,17 +107,17 @@ export async function verificarCodigoEmpresa(codigo: string): Promise<{ error: s
     .eq("tipo", "codigo_empresa")
     .gte("criado_em", umaHoraAtras);
   if ((tentativas ?? 0) >= LIMITE_CODIGO_EMPRESA_POR_HORA) {
-    return { error: "Muitas tentativas de código. Aguarde um pouco e tente novamente." };
+    return { error: "Muitas tentativas de CNPJ. Aguarde um pouco e tente novamente." };
   }
   await admin.from("autocadastro_tentativas").insert({ ip, tipo: "codigo_empresa" });
 
   try {
     const empresa = await getEmpresaAtivaPorCodigo(admin, normalizado);
-    if (!empresa) return { error: "Código não encontrado. Confira com a sua empresa." };
+    if (!empresa) return { error: "CNPJ não encontrado entre as empresas parceiras. Confira com a sua empresa." };
     return { nome: empresa.nome };
   } catch (err) {
     console.error("Autocadastro: falha ao conferir código de empresa:", err);
-    return { error: "Não foi possível conferir o código agora. Tente novamente." };
+    return { error: "Não foi possível conferir o CNPJ agora. Tente novamente." };
   }
 }
 
@@ -223,7 +223,7 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
   if (codigoEmpresa) {
     const empresa = await getEmpresaAtivaPorCodigo(admin, codigoEmpresa);
     if (!empresa) {
-      return { error: "O código da empresa não é válido. Confira com a sua empresa ou desmarque a opção de empresa parceira." };
+      return { error: "O CNPJ da empresa não é válido. Confira com a sua empresa ou desmarque a opção de empresa parceira." };
     }
     empresaParceiraId = empresa.id;
   }

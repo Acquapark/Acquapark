@@ -44,19 +44,11 @@ export function EmpresaParceiraModal({ empresa, onClose }: { empresa: EmpresaPar
             <Label required>Nome da empresa</Label>
             <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Ex: Metalúrgica Silva" autoFocus />
             <p className="mt-1 text-[11px] text-gray-400">
-              É este nome que aparece para o funcionário depois que ele digita o código no cadastro.
+              É este nome que aparece para o funcionário depois que ele digita o CNPJ no cadastro.
             </p>
           </div>
-          {empresa ? (
-            <div className="rounded-[4px] border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
-              Código da empresa: <span className="font-mono text-sm font-semibold tracking-wider text-gray-900">{empresa.codigo}</span>
-              <span className="block text-[11px] text-gray-500">Para trocar, use &ldquo;Gerar novo código&rdquo; no menu da empresa.</span>
-            </div>
-          ) : (
-            <p className="text-[11px] text-gray-500">O código da empresa é gerado automaticamente ao salvar.</p>
-          )}
           <div>
-            <Label>CNPJ</Label>
+            <Label required>CNPJ</Label>
             <Input
               value={cnpj}
               onChange={(e) => setCnpj(formatCNPJ(e.target.value))}
@@ -64,6 +56,9 @@ export function EmpresaParceiraModal({ empresa, onClose }: { empresa: EmpresaPar
               inputMode="numeric"
               maxLength={18}
             />
+            <p className="mt-1 text-[11px] text-gray-400">
+              O CNPJ é o código da empresa: o funcionário digita ele no cadastro pela internet para se vincular.
+            </p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
@@ -97,7 +92,7 @@ export function EmpresaParceiraModal({ empresa, onClose }: { empresa: EmpresaPar
             <span className="text-sm text-gray-700">
               Ativa
               <span className="block text-xs text-gray-500">
-                Empresa inativa some da lista do cadastro pelo painel e o código dela deixa de ser aceito na internet. Os
+                Empresa inativa some da lista do cadastro pelo painel e o CNPJ dela deixa de ser aceito no cadastro pela internet. Os
                 associados já vinculados continuam mostrando a empresa.
               </span>
             </span>
