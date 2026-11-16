@@ -19,7 +19,7 @@ export default async function AssociadosPage({ searchParams }: { searchParams: P
       // Filtro: todas as empresas (inclusive inativas, que ainda têm associados).
       empresasFiltro={empresas.map((e) => ({ id: e.id, nome: e.ativa ? e.nome : `${e.nome} (inativa)` }))}
       // Cadastro novo: só as ativas.
-      empresasCadastro={empresas.filter((e) => e.ativa).map((e) => ({ id: e.id, nome: e.nome }))}
+      empresasCadastro={empresas.filter((e) => e.ativa).map((e) => ({ id: e.id, nome: e.nome, cupom: e.cupom }))}
       empresaInicial={empresa && empresas.some((e) => e.id === empresa) ? empresa : undefined}
     />
   );

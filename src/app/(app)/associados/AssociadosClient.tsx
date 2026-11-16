@@ -11,7 +11,7 @@ import { StatusBadge, StatusMaps } from "@/components/ui/Badge";
 import { Select } from "@/components/ui/Field";
 import { formatCurrency, formatDate } from "@/lib/utils";
 import { AssociadoModal } from "@/components/associados/AssociadoModal";
-import { Associado, AssociadoStatus, Plano } from "@/types";
+import { Associado, AssociadoStatus, EmpresaParceiraOpcao, Plano } from "@/types";
 import { deleteAssociado } from "./actions";
 import { useAcesso } from "@/components/providers/AcessoProvider";
 
@@ -31,7 +31,7 @@ export function AssociadosClient({
   associados: Associado[];
   planos: Plano[];
   empresasFiltro: { id: string; nome: string }[];
-  empresasCadastro: { id: string; nome: string }[];
+  empresasCadastro: EmpresaParceiraOpcao[];
   /** Vindo de /associados?empresa=<id> (botão "Ver associados" em Empresas Parceiras). */
   empresaInicial?: string;
 }) {

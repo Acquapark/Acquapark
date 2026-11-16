@@ -91,7 +91,9 @@ async function ipDaRequisicao(): Promise<string> {
  * nome da empresa, para a pessoa ver que acertou. Limitado por IP para ninguém
  * descobrir códigos na tentativa e erro; o cadastro confere o código de novo.
  */
-export async function verificarCodigoEmpresa(codigo: string): Promise<{ error: string } | { nome: string }> {
+export async function verificarCodigoEmpresa(
+  codigo: string,
+): Promise<{ error: string } | { nome: string; cupom: CupomPlano | null }> {
   const normalizado = normalizarCodigoEmpresa(String(codigo ?? ""));
   if (normalizado.length !== CODIGO_EMPRESA_TAMANHO) {
     return { error: `O CNPJ da empresa tem ${CODIGO_EMPRESA_TAMANHO} números.` };
@@ -114,7 +116,8 @@ export async function verificarCodigoEmpresa(codigo: string): Promise<{ error: s
   try {
     const empresa = await getEmpresaAtivaPorCodigo(admin, normalizado);
     if (!empresa) return { error: "CNPJ não encontrado entre as empresas parceiras. Confira com a sua empresa." };
-    return { nome: empresa.nome };
+    // O desconto da empresa vai junto, para a tela mostrar o plano já com ele.
+    return { nome: empresa.nome, cupom: empresa.cupom };
   } catch (err) {
     console.error("Autocadastro: falha ao conferir código de empresa:", err);
     return { error: "Não foi possível conferir o CNPJ agora. Tente novamente." };
@@ -219,6 +222,7 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
   // Empresa parceira: opcional. O vínculo só vale com o código de uma empresa
   // ativa, conferido aqui de novo (a conferência na tela pode ter sido burlada).
   let empresaParceiraId: string | null = null;
+  let cupomDaEmpresa: string | null = null;
   const codigoEmpresa = normalizarCodigoEmpresa(String(dados.empresaCodigo ?? ""));
   if (codigoEmpresa) {
     const empresa = await getEmpresaAtivaPorCodigo(admin, codigoEmpresa);
@@ -226,12 +230,15 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
       return { error: "O CNPJ da empresa não é válido. Confira com a sua empresa ou desmarque a opção de empresa parceira." };
     }
     empresaParceiraId = empresa.id;
+    cupomDaEmpresa = empresa.cupom?.codigo ?? null;
   }
 
   // Cupom do plano: conferido antes de criar qualquer coisa, para a pessoa
   // receber a mensagem certa. O uso só é consumido na criação do contrato.
-  const cupomCodigo = String(dados.cupomCodigo ?? "").trim();
-  if (cupomCodigo) {
+  // Funcionário de empresa com desconto usa o cupom da empresa — os descontos
+  // não se somam, então o cupom digitado é ignorado.
+  const cupomCodigo = cupomDaEmpresa ?? String(dados.cupomCodigo ?? "").trim();
+  if (cupomCodigo && !cupomDaEmpresa) {
     const cupom = await conferirCupomPlano(admin, cupomCodigo);
     if ("error" in cupom) return { error: `Cupom de desconto: ${cupom.error} Remova o cupom ou use outro.` };
   }
@@ -328,6 +335,10 @@ export async function enviarAutocadastro(formData: FormData): Promise<Autocadast
     console.error("Autocadastro: falha ao criar contrato:", contrato.error);
     // Cupom que acabou de esgotar/expirar entre a conferência e agora.
     if (cupomCodigo && /cupom/i.test(contrato.error)) {
+      // Na nova tentativa o cupom esgotado/vencido da empresa já não é usado.
+      if (cupomDaEmpresa) {
+        return { error: "O desconto da sua empresa acabou de ficar indisponível. Envie o cadastro de novo para concluir sem ele." };
+      }
       return { error: `Cupom de desconto: ${contrato.error} Remova o cupom ou use outro.` };
     }
     return { error: "Não foi possível concluir o cadastro. Tente novamente ou procure a secretaria." };

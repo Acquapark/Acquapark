@@ -19,17 +19,20 @@ export function ProfilePlanoTab({
   associadoId,
   contratoAtivo,
   planos,
+  cupomEmpresa,
 }: {
   associadoId: string;
   contratoAtivo: Contrato | null;
   planos: Plano[];
+  /** Desconto da empresa parceira do associado: já vem aplicado (dá para remover). */
+  cupomEmpresa: CupomPlano | null;
 }) {
   const router = useRouter();
   const { pode } = useAcesso();
   const [planoId, setPlanoId] = useState("");
   const [dataInicio, setDataInicio] = useState(new Date().toISOString().slice(0, 10));
   const [primeiraParcelaData, setPrimeiraParcelaData] = useState("");
-  const [cupom, setCupom] = useState<CupomPlano | null>(null);
+  const [cupom, setCupom] = useState<CupomPlano | null>(cupomEmpresa);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 

@@ -31,7 +31,7 @@ export default async function AssociadoProfilePage({ params }: { params: Promise
   const { empresaParceiraId, empresaParceiraNome } = result.associado;
   const empresas =
     empresaParceiraId && empresaParceiraNome && !empresasAtivas.some((e) => e.id === empresaParceiraId)
-      ? [...empresasAtivas, { id: empresaParceiraId, nome: `${empresaParceiraNome} (inativa)` }]
+      ? [...empresasAtivas, { id: empresaParceiraId, nome: `${empresaParceiraNome} (inativa)`, cupom: null }]
       : empresasAtivas;
 
   // A foto fica em bucket privado: gera uma URL temporária só para esta visualização.

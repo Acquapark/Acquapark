@@ -13,6 +13,8 @@ export interface EmpresaParceiraInput {
   email: string;
   observacoes: string;
   ativa: boolean;
+  /** Cupom de plano aplicado sozinho aos funcionários ("" = sem desconto). */
+  cupomId: string;
 }
 
 function validar(input: EmpresaParceiraInput): string | null {
@@ -35,7 +37,17 @@ function colunas(input: EmpresaParceiraInput) {
     email: input.email.trim().toLowerCase() || null,
     observacoes: input.observacoes.trim() || null,
     ativa: input.ativa,
+    cupom_id: input.cupomId || null,
   };
+}
+
+/** O desconto da empresa precisa ser um cupom que vale para plano de associado. */
+async function validarCupom(supabase: Awaited<ReturnType<typeof createClient>>, cupomId: string): Promise<string | null> {
+  if (!cupomId) return null;
+  const { data } = await supabase.from("cupons_desconto").select("aplica_a").eq("id", cupomId).maybeSingle();
+  if (!data) return "Cupom de desconto não encontrado.";
+  if (data.aplica_a === "ingressos") return "Esse cupom vale só para ingressos. Escolha um cupom de plano de associado.";
+  return null;
 }
 
 function mensagemDeErro(error: { code?: string; message: string }) {
@@ -60,6 +72,8 @@ export async function createEmpresaParceira(input: EmpresaParceiraInput) {
   if (invalido) return { error: invalido };
 
   const supabase = await createClient();
+  const cupomInvalido = await validarCupom(supabase, input.cupomId);
+  if (cupomInvalido) return { error: cupomInvalido };
   const { error } = await supabase.from("empresas_parceiras").insert(colunas(input));
   if (error) return { error: mensagemDeErro(error) };
   revalidar();
@@ -73,6 +87,8 @@ export async function updateEmpresaParceira(id: string, input: EmpresaParceiraIn
   if (invalido) return { error: invalido };
 
   const supabase = await createClient();
+  const cupomInvalido = await validarCupom(supabase, input.cupomId);
+  if (cupomInvalido) return { error: cupomInvalido };
   const { error } = await supabase
     .from("empresas_parceiras")
     .update({ ...colunas(input), updated_at: new Date().toISOString() })

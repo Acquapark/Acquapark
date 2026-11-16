@@ -18,7 +18,7 @@ import { StepAcessos } from "@/components/associados/steps/StepAcessos";
 import { StepCredencial } from "@/components/associados/steps/StepCredencial";
 import { ContratosTabContent } from "@/components/associados/ContratosTabContent";
 import { AcessoTabContent } from "@/components/associados/AcessoTabContent";
-import { Associado, AcessoAssociado, AssociadoStatus, Contrato, Plano } from "@/types";
+import { Associado, AcessoAssociado, AssociadoStatus, Contrato, EmpresaParceiraOpcao, Plano } from "@/types";
 import type { AceiteTermos } from "@/lib/termos";
 import type { SituacaoCortesia } from "@/lib/cortesia";
 import { CortesiaCard } from "@/components/cortesia/CortesiaCard";
@@ -119,7 +119,7 @@ export function AssociadoProfileClient({
   empresas,
 }: {
   /** Empresas parceiras para escolher na edição (ativas + a atual, se estiver inativa). */
-  empresas: { id: string; nome: string }[];
+  empresas: EmpresaParceiraOpcao[];
   associado: Associado;
   planoId: string | null;
   credencialCodigo: string | null;
@@ -398,7 +398,12 @@ export function AssociadoProfileClient({
             <ProfileDependentesTab associadoId={associado.id} dependentes={associado.dependentes} plano={planoAtual} />
           )}
           {activeTab === "plano" && (
-            <ProfilePlanoTab associadoId={associado.id} contratoAtivo={contratoAtivo} planos={planos} />
+            <ProfilePlanoTab
+              associadoId={associado.id}
+              contratoAtivo={contratoAtivo}
+              planos={planos}
+              cupomEmpresa={empresas.find((e) => e.id === associado.empresaParceiraId)?.cupom ?? null}
+            />
           )}
           {activeTab === "contrato" && (
             <ContratosTabContent

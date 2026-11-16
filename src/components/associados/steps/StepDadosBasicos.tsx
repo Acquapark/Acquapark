@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { Camera } from "lucide-react";
 import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { AssociadoFormState } from "../form-types";
+import { EmpresaParceiraOpcao } from "@/types";
 import { cn, formatCEP, formatCPF, formatPhone, formatRG, RG_TAMANHO_MAXIMO, UFS } from "@/lib/utils";
 import { comprimirFoto } from "@/lib/foto-associado";
 
@@ -19,12 +20,26 @@ export function StepDadosBasicos({
   update: (patch: Partial<AssociadoFormState>) => void;
   disabled?: boolean;
   /** Empresas parceiras que podem ser escolhidas (ativas + a atual do associado, se estiver inativa). */
-  empresas: { id: string; nome: string }[];
+  empresas: EmpresaParceiraOpcao[];
   /** Foto atual (URL assinada) ou a recém-escolhida (blob:). */
   fotoPreview?: string | null;
   /** Recebe a foto já reduzida; sem este callback a foto é só exibida. */
   onFoto?: (blob: Blob, preview: string) => void;
 }) {
+  /**
+   * Escolher a empresa já coloca o desconto dela no plano (o cupom aparece no
+   * passo do plano e pode ser removido). Trocar para uma empresa sem desconto
+   * tira o cupom que tinha vindo da empresa anterior; um cupom digitado fica.
+   */
+  function escolherEmpresa(id: string) {
+    const cupomAnterior = empresas.find((e) => e.id === form.empresaParceiraId)?.cupom ?? null;
+    const cupomNovo = empresas.find((e) => e.id === id)?.cupom ?? null;
+    const patch: Partial<AssociadoFormState> = { empresaParceiraId: id };
+    if (cupomNovo) patch.cupom = cupomNovo;
+    else if (cupomAnterior && form.cupom?.id === cupomAnterior.id) patch.cupom = null;
+    update(patch);
+  }
+
   const [buscandoCep, setBuscandoCep] = useState(false);
   const [processandoFoto, setProcessandoFoto] = useState(false);
   const [erroFoto, setErroFoto] = useState("");
@@ -191,13 +206,14 @@ export function StepDadosBasicos({
           <Label>Empresa parceira</Label>
           <Select
             value={form.empresaParceiraId}
-            onChange={(e) => update({ empresaParceiraId: e.target.value })}
+            onChange={(e) => escolherEmpresa(e.target.value)}
             disabled={disabled}
           >
             <option value="">Nenhuma (não veio por empresa parceira)</option>
             {empresas.map((empresa) => (
               <option key={empresa.id} value={empresa.id}>
                 {empresa.nome}
+                {empresa.cupom ? ` (desconto ${empresa.cupom.codigo})` : ""}
               </option>
             ))}
           </Select>

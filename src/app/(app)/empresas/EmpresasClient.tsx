@@ -12,12 +12,13 @@ import { RowMenu, RowMenuItem } from "@/components/ui/RowMenu";
 import { Table, Thead, Tbody, Th, Tr, Td, TableEmpty } from "@/components/ui/Table";
 import { EmpresaParceiraModal } from "@/components/empresas/EmpresaParceiraModal";
 import { useAcesso } from "@/components/providers/AcessoProvider";
-import { EmpresaParceira } from "@/types";
+import { CupomDesconto, EmpresaParceira } from "@/types";
+import { descreverCupomPlano } from "@/lib/cupom-plano";
 import { deleteEmpresaParceira } from "./actions";
 
 type FiltroSituacao = "todas" | "ativas" | "inativas";
 
-export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
+export function EmpresasClient({ empresas, cuponsPlano }: { empresas: EmpresaParceira[]; cuponsPlano: CupomDesconto[] }) {
   const router = useRouter();
   const { pode } = useAcesso();
   const [busca, setBusca] = useState("");
@@ -86,7 +87,7 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
     <div>
       <PageHeader
         title="Empresas Parceiras"
-        subtitle={`${empresas.length} empresa(s) · ${totalAssociados} associado(s) vinculado(s) · o funcionário digita o CNPJ da empresa no cadastro pela internet`}
+        subtitle={`${empresas.length} empresa(s) · ${totalAssociados} associado(s) vinculado(s) · o funcionário digita o CNPJ da empresa no cadastro pela internet e ganha o desconto dela`}
         action={
           pode("empresas_parceiras.criar") ? (
             <Button onClick={() => setModal({ empresa: null })}>
@@ -149,6 +150,7 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
             <tr>
               <Th>Empresa</Th>
               <Th>CNPJ (código)</Th>
+              <Th>Desconto para funcionários</Th>
               <Th>Contato</Th>
               <Th>Associados</Th>
               <Th>Situação</Th>
@@ -158,7 +160,7 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
           <Tbody>
             {filtradas.length === 0 && (
               <TableEmpty
-                colSpan={6}
+                colSpan={7}
                 message={empresas.length === 0 ? "Nenhuma empresa parceira cadastrada ainda." : "Nenhuma empresa encontrada."}
               />
             )}
@@ -189,6 +191,22 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
                         <p className="text-gray-500">
                           Código antigo: <span className="font-mono">{e.codigo}</span>
                         </p>
+                      </div>
+                    )}
+                  </Td>
+                  <Td>
+                    {!e.cupomId ? (
+                      "—"
+                    ) : e.cupom ? (
+                      <div className="text-xs">
+                        <p className="font-medium text-gray-800">{e.cupom.codigo}</p>
+                        <p className="text-gray-500">{descreverCupomPlano(e.cupom)}</p>
+                      </div>
+                    ) : (
+                      // Cupom vencido, inativo ou esgotado: os funcionários se cadastram sem desconto.
+                      <div className="text-xs">
+                        <p className="font-medium text-gray-800">{e.cupomCodigo}</p>
+                        <p className="font-medium text-warning-700">Cupom vencido, inativo ou esgotado: sem desconto agora</p>
                       </div>
                     )}
                   </Td>
@@ -230,6 +248,7 @@ export function EmpresasClient({ empresas }: { empresas: EmpresaParceira[] }) {
         <EmpresaParceiraModal
           key={modal.empresa?.id ?? "nova"}
           empresa={modal.empresa}
+          cuponsPlano={cuponsPlano}
           onClose={() => setModal(null)}
         />
       )}

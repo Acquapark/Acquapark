@@ -1,3 +1,5 @@
+import type { CupomPlano } from "@/lib/cupom-plano";
+
 export type AssociadoStatus = "Ativo" | "Pendente" | "Inadimplente" | "Suspenso" | "Inativo";
 export type MensalidadeStatus = "Pago" | "Pendente" | "Vencido" | "Cancelado" | "Em processamento";
 export type AcessoTipo = "Entrada" | "Saída" | "Reentrada";
@@ -125,6 +127,18 @@ export interface EmpresaParceira {
   ativa: boolean;
   /** Quantos associados estão vinculados a ela. */
   totalAssociados: number;
+  /** Cupom de plano escolhido como desconto para os funcionários (null = sem desconto). */
+  cupomId: string | null;
+  cupomCodigo: string | null;
+  /** O cupom pronto para aplicar — null se não houver ou se não puder ser usado agora (vencido, inativo, esgotado). */
+  cupom: CupomPlano | null;
+}
+
+/** Empresa parceira nas listas de escolha do cadastro de associado, com o desconto dela. */
+export interface EmpresaParceiraOpcao {
+  id: string;
+  nome: string;
+  cupom: CupomPlano | null;
 }
 
 export type RegraReentrada = "unica" | "reentrada" | "ilimitado";

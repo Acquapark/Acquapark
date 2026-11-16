@@ -4,12 +4,22 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Modal, ModalHeader, ModalBody, ModalFooter } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
-import { Label, Input, Textarea } from "@/components/ui/Field";
+import { Label, Input, Select, Textarea } from "@/components/ui/Field";
 import { formatCNPJ, formatPhone } from "@/lib/utils";
-import { EmpresaParceira } from "@/types";
+import { descreverCupomPlano } from "@/lib/cupom-plano";
+import { CupomDesconto, EmpresaParceira } from "@/types";
 import { createEmpresaParceira, updateEmpresaParceira } from "@/app/(app)/empresas/actions";
 
-export function EmpresaParceiraModal({ empresa, onClose }: { empresa: EmpresaParceira | null; onClose: () => void }) {
+export function EmpresaParceiraModal({
+  empresa,
+  cuponsPlano,
+  onClose,
+}: {
+  empresa: EmpresaParceira | null;
+  /** Cupons que valem para plano de associado — as opções de desconto. */
+  cuponsPlano: CupomDesconto[];
+  onClose: () => void;
+}) {
   const router = useRouter();
   const [nome, setNome] = useState(empresa?.nome ?? "");
   const [cnpj, setCnpj] = useState(empresa?.cnpj ?? "");
@@ -18,13 +28,14 @@ export function EmpresaParceiraModal({ empresa, onClose }: { empresa: EmpresaPar
   const [email, setEmail] = useState(empresa?.email ?? "");
   const [observacoes, setObservacoes] = useState(empresa?.observacoes ?? "");
   const [ativa, setAtiva] = useState(empresa?.ativa ?? true);
+  const [cupomId, setCupomId] = useState(empresa?.cupomId ?? "");
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState("");
 
   async function salvar() {
     setSalvando(true);
     setErro("");
-    const input = { nome, cnpj, contatoNome, telefone, email, observacoes, ativa };
+    const input = { nome, cnpj, contatoNome, telefone, email, observacoes, ativa, cupomId };
     const resultado = empresa ? await updateEmpresaParceira(empresa.id, input) : await createEmpresaParceira(input);
     setSalvando(false);
     if (resultado.error) {
@@ -58,6 +69,23 @@ export function EmpresaParceiraModal({ empresa, onClose }: { empresa: EmpresaPar
             />
             <p className="mt-1 text-[11px] text-gray-400">
               O CNPJ é o código da empresa: o funcionário digita ele no cadastro pela internet para se vincular.
+            </p>
+          </div>
+          <div>
+            <Label>Desconto para funcionários</Label>
+            <Select value={cupomId} onChange={(e) => setCupomId(e.target.value)}>
+              <option value="">Sem desconto</option>
+              {cuponsPlano.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.codigo}: {descreverCupomPlano(c)}
+                  {c.ativo ? "" : " (inativo)"}
+                </option>
+              ))}
+            </Select>
+            <p className="mt-1 text-[11px] text-gray-400">
+              O cupom entra sozinho no plano de quem se cadastra como funcionário desta empresa, pela internet ou pelo
+              painel. Os cupons são criados na Bilheteria, valendo para &ldquo;Planos de associado&rdquo;. Validade e limite de
+              usos do cupom continuam valendo.
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">

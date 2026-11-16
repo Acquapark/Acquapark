@@ -116,6 +116,8 @@ export function AutocadastroClient({
   const [empresaConfirmada, setEmpresaConfirmada] = useState<string | null>(null);
   const [conferindoCodigo, setConferindoCodigo] = useState(false);
   const [erroCodigo, setErroCodigo] = useState("");
+  // Desconto da empresa confirmada: entra sozinho no plano e substitui o cupom digitado (não se somam).
+  const [cupomEmpresa, setCupomEmpresa] = useState<CupomPlano | null>(null);
   // Cupom de desconto do plano: conferido no servidor; o uso só é gasto ao concluir.
   const [cupomDigitado, setCupomDigitado] = useState("");
   const [cupom, setCupom] = useState<CupomPlano | null>(null);
@@ -125,6 +127,7 @@ export function AutocadastroClient({
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
   const plano = planos.find((p) => p.id === dados.planoId) ?? null;
+  const cupomAplicado = cupomEmpresa ?? cupom;
   const permiteDependentes = (plano?.dependentesPermitidos ?? 0) > 0;
 
   // A etapa de dependentes só existe quando o plano escolhido permite.
@@ -202,6 +205,7 @@ export function AutocadastroClient({
     if (!marcado) {
       setCodigoDigitado("");
       setEmpresaConfirmada(null);
+      setCupomEmpresa(null);
       setErroCodigo("");
       update({ empresaCodigo: "" });
     }
@@ -211,6 +215,7 @@ export function AutocadastroClient({
     setCodigoDigitado(normalizarCodigoEmpresa(valor));
     // Mudou o código: a confirmação anterior não vale mais.
     setEmpresaConfirmada(null);
+    setCupomEmpresa(null);
     setErroCodigo("");
     update({ empresaCodigo: "" });
   }
@@ -225,7 +230,10 @@ export function AutocadastroClient({
       return;
     }
     setEmpresaConfirmada(resultado.nome);
+    setCupomEmpresa(resultado.cupom);
     update({ empresaCodigo: codigoDigitado });
+    // Com o desconto da empresa, um cupom digitado antes deixa de valer.
+    if (resultado.cupom) removerCupom();
   }
 
   async function aplicarCupom() {
@@ -534,6 +542,11 @@ export function AutocadastroClient({
                         Empresa: {empresaConfirmada}
                       </p>
                     )}
+                    {empresaConfirmada && cupomEmpresa && (
+                      <p className="mt-1 text-xs text-success-700">
+                        Você ganha {descreverCupomPlano(cupomEmpresa)} do plano.
+                      </p>
+                    )}
                     {erroCodigo && <p className="mt-2 text-xs text-danger-600">{erroCodigo}</p>}
                   </div>
                 )}
@@ -663,47 +676,67 @@ export function AutocadastroClient({
             })}
 
             <div className="rounded-[6px] border border-gray-200 bg-white p-3">
-              <span className="mb-1.5 block text-xs font-medium text-gray-600">Tem um cupom de desconto?</span>
-              {cupom ? (
-                <div className="flex items-start gap-2 rounded-[6px] bg-success-50 px-3 py-2 text-sm text-success-700">
-                  <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
-                  <span className="flex-1">
-                    <strong>{cupom.codigo}</strong>: {descreverCupomPlano(cupom)}
-                    {plano && (
-                      <span className="block text-xs">
-                        1ª mensalidade: <s className="text-gray-400">{formatCurrency(plano.valor)}</s>{" "}
-                        <strong>{formatCurrency(valorComCupom(plano.valor, cupom))}</strong>
-                      </span>
-                    )}
-                  </span>
-                  <button type="button" onClick={removerCupom} className="text-xs font-medium underline">
-                    Remover
-                  </button>
-                </div>
+              {cupomEmpresa ? (
+                <>
+                  <span className="mb-1.5 block text-xs font-medium text-gray-600">Desconto da sua empresa</span>
+                  <div className="flex items-start gap-2 rounded-[6px] bg-success-50 px-3 py-2 text-sm text-success-700">
+                    <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                    <span className="flex-1">
+                      <strong>{empresaConfirmada}</strong>: {descreverCupomPlano(cupomEmpresa)}
+                      {plano && (
+                        <span className="block text-xs">
+                          1ª mensalidade: <s className="text-gray-400">{formatCurrency(plano.valor)}</s>{" "}
+                          <strong>{formatCurrency(valorComCupom(plano.valor, cupomEmpresa))}</strong>
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                </>
               ) : (
                 <>
-                  <div className="flex gap-2">
-                    <input
-                      className={cn(inputClass, "uppercase")}
-                      value={cupomDigitado}
-                      onChange={(e) => {
-                        setCupomDigitado(e.target.value.toUpperCase());
-                        setErroCupom("");
-                      }}
-                      placeholder="Código do cupom"
-                      autoCapitalize="characters"
-                      autoComplete="off"
-                    />
-                    <button
-                      type="button"
-                      onClick={aplicarCupom}
-                      disabled={conferindoCupom || !cupomDigitado.trim()}
-                      className="h-12 shrink-0 rounded-[6px] bg-primary-600 px-4 text-sm font-semibold text-white disabled:bg-gray-300"
-                    >
-                      {conferindoCupom ? "..." : "Aplicar"}
-                    </button>
-                  </div>
-                  {erroCupom && <p className="mt-2 text-xs text-danger-600">{erroCupom}</p>}
+                  <span className="mb-1.5 block text-xs font-medium text-gray-600">Tem um cupom de desconto?</span>
+                  {cupom ? (
+                    <div className="flex items-start gap-2 rounded-[6px] bg-success-50 px-3 py-2 text-sm text-success-700">
+                      <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+                      <span className="flex-1">
+                        <strong>{cupom.codigo}</strong>: {descreverCupomPlano(cupom)}
+                        {plano && (
+                          <span className="block text-xs">
+                            1ª mensalidade: <s className="text-gray-400">{formatCurrency(plano.valor)}</s>{" "}
+                            <strong>{formatCurrency(valorComCupom(plano.valor, cupom))}</strong>
+                          </span>
+                        )}
+                      </span>
+                      <button type="button" onClick={removerCupom} className="text-xs font-medium underline">
+                        Remover
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex gap-2">
+                        <input
+                          className={cn(inputClass, "uppercase")}
+                          value={cupomDigitado}
+                          onChange={(e) => {
+                            setCupomDigitado(e.target.value.toUpperCase());
+                            setErroCupom("");
+                          }}
+                          placeholder="Código do cupom"
+                          autoCapitalize="characters"
+                          autoComplete="off"
+                        />
+                        <button
+                          type="button"
+                          onClick={aplicarCupom}
+                          disabled={conferindoCupom || !cupomDigitado.trim()}
+                          className="h-12 shrink-0 rounded-[6px] bg-primary-600 px-4 text-sm font-semibold text-white disabled:bg-gray-300"
+                        >
+                          {conferindoCupom ? "..." : "Aplicar"}
+                        </button>
+                      </div>
+                      {erroCupom && <p className="mt-2 text-xs text-danger-600">{erroCupom}</p>}
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -857,13 +890,13 @@ export function AutocadastroClient({
                   {plano.nome} · {formatCurrency(plano.valor)}/mês
                 </dd>
               </div>
-              {cupom && (
+              {cupomAplicado && (
                 <div className="flex justify-between gap-3">
-                  <dt>Cupom</dt>
+                  <dt>{cupomEmpresa ? "Desconto da empresa" : "Cupom"}</dt>
                   <dd className="text-right text-gray-800">
-                    {cupom.codigo}: {descreverCupomPlano(cupom)}
+                    {cupomEmpresa ? empresaConfirmada : cupomAplicado.codigo}: {descreverCupomPlano(cupomAplicado)}
                     <span className="block text-xs text-gray-500">
-                      1ª mensalidade: {formatCurrency(valorComCupom(plano.valor, cupom))}
+                      1ª mensalidade: {formatCurrency(valorComCupom(plano.valor, cupomAplicado))}
                     </span>
                   </dd>
                 </div>

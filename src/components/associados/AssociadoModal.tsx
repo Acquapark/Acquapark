@@ -12,7 +12,7 @@ import { StepContrato } from "./steps/StepContrato";
 import { StepFinanceiro } from "./steps/StepFinanceiro";
 import { StepAcessos } from "./steps/StepAcessos";
 import { StepCredencial } from "./steps/StepCredencial";
-import { Plano } from "@/types";
+import { EmpresaParceiraOpcao, Plano } from "@/types";
 import { createAssociado, regenerarCredencial, salvarFotoAssociado } from "@/app/(app)/associados/actions";
 
 export function AssociadoModal({
@@ -24,7 +24,7 @@ export function AssociadoModal({
   open: boolean;
   onClose: () => void;
   planos: Plano[];
-  empresas: { id: string; nome: string }[];
+  empresas: EmpresaParceiraOpcao[];
 }) {
   const router = useRouter();
   const [step, setStep] = useState(0);
